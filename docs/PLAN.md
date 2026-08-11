@@ -34,12 +34,12 @@ GAZEBO ─ 2 plateaus + ramp, racks, actors with collision geometry
    │
    ├─ slam_toolbox(amr1) ─┐
    ├─ slam_toolbox(amr2) ─┴─► FleetMapNode ─► /fleet_map
-   │                              │            + TF: fleet_map → map_amrN  ⚡ correctable
+   │                              │            + TF: fleet_map → amrN/map  ⚡ correctable
    │                              └─ selective update policy (scored)
    │        ↓
    ├─ Nav2 (ns amr1) ──┐   global costmap: global_frame=fleet_map,          ⚡ fleet map
    ├─ Nav2 (ns amr2) ──┤   static layer=/fleet_map, + RampCostLayer            drives planning
-   │                    │   local costmap:  odom_amrN, + FleetTrajectoryLayer ⚡ MAPF here
+   │                    │   local costmap:  amrN/odom, + FleetTrajectoryLayer ⚡ MAPF here
    │                    │
    │   TrajectoryPredictor (per robot) ─► /amrN/predicted_trajectory
    │        └─► consumed by the OTHER robot's FleetTrajectoryLayer
@@ -64,16 +64,31 @@ Implementation: on gate entry, dynamic-param `controller_server.progress_checker
 
 ### ⚡ TF chain (multi-robot, fleet frame)
 
+⚡ **V2.1 — frame naming synced to the Phase 0 implementation.** Frames are
+`<robot>/<frame>` (`amr1/base_link`), not `<frame>_<robot>` (`base_link_amr1`). This is
+what `slam_toolbox` and Nav2 expect from a namespaced bringup, so it fights the stock
+tooling least. It is also forced by simulation: Gazebo Harmonic 8.11.0 has no
+`<gz_frame_id>` override, so a sensor's `frame_id` is derived from its link name — the
+prefix has to live in the link name itself for the scan's frame and the TF frame to agree.
+
 ```
 fleet_map
-   ├── map_amr1 ── odom_amr1 ── base_link_amr1 ── {laser,imu}_amr1
-   └── map_amr2 ── odom_amr2 ── base_link_amr2 ── {laser,imu}_amr2
-        ▲                ▲
-        │                └─ slam_toolbox publishes
+   ├── amr1/map ── amr1/odom ── amr1/base_footprint ── amr1/base_link ── amr1/{laser,imu_link}
+   └── amr2/map ── amr2/odom ── amr2/base_footprint ── amr2/base_link ── amr2/{laser,imu_link}
+        ▲              ▲              ▲
+        │              │              └─ robot_state_publisher publishes (URDF, fixed)
+        │              └─ Gazebo DiffDrive publishes in sim; wheel odometry
+        │                 (Phase 3: slam_toolbox publishes map → odom)
         └─ FleetMapNode publishes, refines on drift correction
 ```
 
-Global costmaps operate in `fleet_map`; local costmaps in `odom_amrN`. When FleetMapNode corrects an inter-map transform the robot's fleet-frame pose steps — same class of behaviour as an AMCL correction. Document it as expected, keep corrections small and infrequent.
+Global costmaps operate in `fleet_map`; local costmaps in `amrN/odom`. When FleetMapNode
+corrects an inter-map transform the robot's fleet-frame pose steps — same class of behaviour
+as an AMCL correction. Document it as expected, keep corrections small and infrequent.
+
+Note that `base_footprint` is the kinematic root and the frame odometry is published
+against; `base_link` sits one fixed joint above it at drive-axle height. Nav2's
+`robot_base_frame` is `amrN/base_footprint`.
 
 ---
 
