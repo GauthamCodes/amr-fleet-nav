@@ -1,0 +1,43 @@
+# flake8 configuration.
+#
+# docs/ENGINEERING_NOTES.md mandates PEP 8 enforced by BOTH flake8 and black. Where the two disagree,
+# black wins and flake8 is configured to stop arguing:
+#
+#   Q000  flake8-quotes prefers single quotes; black normalises to double.
+#   E203  black puts a space before ':' in slices, which PEP 8 permits and E203 flags.
+#   W503  line break before a binary operator - black's preferred style, and the
+#         modern PEP 8 recommendation.
+#
+# Line length is black's default of 88.
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503, Q000
+
+# Workspace packages are first-party. Without this, flake8-import-order classes them
+# as third-party and demands they be grouped with launch and rclpy.
+application-import-names =
+    amr_bringup,
+    amr_bsp,
+    amr_costmap_plugins,
+    amr_description,
+    amr_fleet_control,
+    amr_gazebo,
+    amr_motion,
+    amr_navigation
+import-order-style = google
+exclude =
+    .git,
+    build,
+    install,
+    log,
+    __pycache__,
+    .tooling
+
+per-file-ignores =
+    # docs/ENGINEERING_NOTES.md requires docstrings on every CLASS. A pytest function named
+    # test_heavier_robot_is_actually_heavier documents itself, and a mandated
+    # one-line restatement above it would be noise.
+    tests/*:D103
+    # main() entry points immediately below a module docstring that already
+    # explains the script.
+    src/amr_gazebo/scripts/*:D103

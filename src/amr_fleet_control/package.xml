@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>amr_fleet_control</name>
+  <version>0.1.0</version>
+  <description>
+    Fleet-level coordination. FleetMapNode composites per-robot SLAM maps into a single
+    unified occupancy grid with a correctable inter-map transform and a scored selective
+    update policy. TrajectoryPredictor publishes each robot's projected path for the other
+    robots' costmap layers. TrafficControlNode arbitrates only those conflicts the local
+    trajectory layer could not resolve, and suppresses Nav2 recovery whenever it yields.
+    SKELETON: FleetMapNode in Phase 3, TrajectoryPredictor in Phase 6, TrafficControlNode
+    in Phase 7.
+  </description>
+  <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

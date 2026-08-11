@@ -1,0 +1,144 @@
+<?xml version="1.0"?>
+<!--
+  amr_gazebo.xacro - Gazebo Harmonic simulation blocks for the parameterized AMR.
+  Included by amr.urdf.xacro; it reads the same properties and never redefines them.
+
+  Acceleration limits are applied HERE as well as in the navigation stack later, so the
+  simulated vehicle and the planner are constrained by one set of numbers coming from one
+  YAML file. A robot that accelerates in simulation faster than the planner believes it can
+  is a source of tracking error that looks like a controller bug.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Wheel friction: high enough to climb the ramp without slipping. -->
+  <gazebo reference="${prefix}left_wheel_link">
+    <mu1>1.2</mu1>
+    <mu2>1.2</mu2>
+    <kp>1e6</kp>
+    <kd>10.0</kd>
+  </gazebo>
+
+  <gazebo reference="${prefix}right_wheel_link">
+    <mu1>1.2</mu1>
+    <mu2>1.2</mu2>
+    <kp>1e6</kp>
+    <kd>10.0</kd>
+  </gazebo>
+
+  <!-- Caster deliberately slick: a high-friction caster on a diff-drive base fights
+       every turn and shows up as a heading bias in odometry. -->
+  <gazebo reference="${prefix}front_caster_link">
+    <mu1>0.05</mu1>
+    <mu2>0.05</mu2>
+  </gazebo>
+
+  <!-- ==================== 2D LiDAR ==================== -->
+  <gazebo reference="${prefix}laser">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>${name}/scan</topic>
+      <update_rate>$(arg lidar_update_rate)</update_rate>
+      <always_on>1</always_on>
+      <visualize>false</visualize>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>$(arg lidar_samples)</samples>
+            <resolution>1</resolution>
+            <min_angle>$(arg lidar_min_angle)</min_angle>
+            <max_angle>$(arg lidar_max_angle)</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0.0</min_angle>
+            <max_angle>0.0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>$(arg lidar_range_min)</min>
+          <max>$(arg lidar_range_max)</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- ==================== IMU ==================== -->
+  <gazebo reference="${prefix}imu_link">
+    <sensor name="imu" type="imu">
+      <topic>${name}/imu</topic>
+      <update_rate>$(arg imu_update_rate)</update_rate>
+      <always_on>1</always_on>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- ==================== Systems ==================== -->
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system"
+            name="gz::sim::systems::DiffDrive">
+      <left_joint>${prefix}left_wheel_joint</left_joint>
+      <right_joint>${prefix}right_wheel_joint</right_joint>
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+
+      <!-- Payload-appropriate limits, straight from fleet.yaml. -->
+      <max_linear_velocity>$(arg max_vel_x)</max_linear_velocity>
+      <min_linear_velocity>${-1.0 * $(arg max_vel_x)}</min_linear_velocity>
+      <max_angular_velocity>$(arg max_vel_theta)</max_angular_velocity>
+      <min_angular_velocity>${-1.0 * $(arg max_vel_theta)}</min_angular_velocity>
+      <max_linear_acceleration>$(arg max_accel_x)</max_linear_acceleration>
+      <min_linear_acceleration>$(arg max_decel_x)</min_linear_acceleration>
+      <max_angular_acceleration>$(arg max_accel_theta)</max_angular_acceleration>
+      <min_angular_acceleration>${-1.0 * $(arg max_accel_theta)}</min_angular_acceleration>
+
+      <topic>${name}/cmd_vel</topic>
+      <odom_topic>${name}/odom</odom_topic>
+      <tf_topic>${name}/pose</tf_topic>
+      <frame_id>${prefix}odom</frame_id>
+      <child_frame_id>${prefix}base_footprint</child_frame_id>
+      <odom_publish_frequency>50</odom_publish_frequency>
+    </plugin>
+
+    <!-- Simulator ground truth. Wheel odometry is dead reckoning and lies whenever
+         the wheels turn without the robot moving; this publishes the true model pose
+         so measurements can be checked against reality. Simulation-only - nothing in
+         the navigation stack is permitted to consume it. -->
+    <plugin filename="gz-sim-pose-publisher-system"
+            name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>false</publish_link_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <publish_model_pose>true</publish_model_pose>
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <static_publisher>false</static_publisher>
+      <update_frequency>50</update_frequency>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>${name}/joint_states</topic>
+      <joint_name>${prefix}left_wheel_joint</joint_name>
+      <joint_name>${prefix}right_wheel_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+</robot>

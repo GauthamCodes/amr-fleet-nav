@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>amr_safety</name>
+  <version>0.1.0</version>
+  <description>
+    SafetyGate: the low-latency safety override. A SERIAL gate and the last link before
+    /cmd_vel, never a twist_mux input, so that a dead node stops the robot rather than
+    letting commands through. Enforces d_safe = k*v^2 + d_min using measured velocity from
+    odometry, with a per-robot payload-scaled k and hysteresis on release. C++ because it
+    sits in the command path and its latency is measured.
+    SKELETON: implemented in Phase 2.
+  </description>
+  <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rcl_interfaces</depend>
+
+  <exec_depend>twist_mux</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

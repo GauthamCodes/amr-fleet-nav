@@ -8,6 +8,13 @@ __pycache__/
 .vscode/
 .idea/
 *.swp
-rosbags/*.db3
-rosbags/*.mcap
+# Recorded bags are local evidence artifacts, not source. The patterns are
+# recursive because ros2 bag writes into a per-run subdirectory, so a top-level
+# glob silently fails to match and a 46 MB mcap lands in a commit.
+rosbags/**/*.db3
+rosbags/**/*.mcap
+rosbags/**/metadata.yaml
 results/*.png
+
+# Worlds rendered from xacro at launch time.
+generated/

@@ -1,0 +1,262 @@
+<?xml version="1.0"?>
+<!--
+  amr.urdf.xacro - the single parameterized AMR description for the whole fleet.
+
+  There is deliberately no per-robot xacro. Every robot difference (mass, payload,
+  wheelbase, sensor height, acceleration limits) arrives as an argument, sourced from
+  the typed robot list in amr_description/config/fleet.yaml. Adding a robot is a YAML
+  edit, never a code edit.
+
+  FRAME NAMING
+    Link names carry the robot prefix directly (amr1/base_link, amr1/laser, ...) rather
+    than relying on robot_state_publisher's frame_prefix. This is deliberate: Gazebo
+    Harmonic 8.11.0 does not support the <gz_frame_id> sensor override, so the frame_id
+    that reaches ROS on /scan and /imu is derived from the link name in the simulated
+    model. Baking the prefix into the link name is what keeps the sensor frame_id and
+    the TF frame identical. If they diverge, sensor data arrives in a frame TF has never
+    heard of and every downstream costmap silently sees nothing.
+
+  SENSOR HEIGHT CONVENTION
+    lidar_height is measured from the GROUND PLANE, not from base_link. Smoke test 2's
+    phantom-ground-return maths (d = h / sin(pitch)) uses height above ground, so the
+    tunable argument is expressed in the same terms as the measurement that will tune it.
+-->
+<robot name="amr" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==== Identity ==== -->
+  <xacro:arg name="name" default="amr1"/>
+  <xacro:arg name="prefix" default="amr1/"/>
+
+  <!-- ==== Mass / payload ==== -->
+  <xacro:arg name="base_mass_kg" default="30.0"/>
+  <xacro:arg name="payload_kg" default="0.0"/>
+
+  <!-- ==== Drive geometry ==== -->
+  <xacro:arg name="wheel_separation" default="0.44"/>
+  <xacro:arg name="wheel_radius" default="0.10"/>
+  <xacro:arg name="wheel_width" default="0.05"/>
+
+  <!-- ==== Chassis geometry ==== -->
+  <xacro:arg name="base_length" default="0.70"/>
+  <xacro:arg name="base_width" default="0.45"/>
+  <xacro:arg name="base_height" default="0.20"/>
+
+  <!-- ==== Sensors (lidar_height is TUNABLE - smoke test 2 may revise it) ==== -->
+  <xacro:arg name="lidar_height" default="0.20"/>
+  <xacro:arg name="lidar_range_min" default="0.12"/>
+  <xacro:arg name="lidar_range_max" default="12.0"/>
+  <xacro:arg name="lidar_samples" default="360"/>
+  <xacro:arg name="lidar_min_angle" default="-3.141592653589793"/>
+  <xacro:arg name="lidar_max_angle" default="3.141592653589793"/>
+  <xacro:arg name="lidar_update_rate" default="10.0"/>
+  <xacro:arg name="imu_update_rate" default="100.0"/>
+
+  <!-- ==== Kinodynamic limits (also fed to nav2_velocity_smoother in later phases,
+           so simulation and planning read the SAME numbers) ==== -->
+  <xacro:arg name="max_vel_x" default="0.60"/>
+  <xacro:arg name="max_accel_x" default="0.40"/>
+  <xacro:arg name="max_decel_x" default="-0.80"/>
+  <xacro:arg name="max_vel_theta" default="1.20"/>
+  <xacro:arg name="max_accel_theta" default="1.50"/>
+
+  <!-- ==== Resolve args to properties ==== -->
+  <xacro:property name="name" value="$(arg name)"/>
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+  <xacro:property name="base_mass_kg" value="$(arg base_mass_kg)"/>
+  <xacro:property name="payload_kg" value="$(arg payload_kg)"/>
+  <xacro:property name="wheel_separation" value="$(arg wheel_separation)"/>
+  <xacro:property name="wheel_radius" value="$(arg wheel_radius)"/>
+  <xacro:property name="wheel_width" value="$(arg wheel_width)"/>
+  <xacro:property name="base_length" value="$(arg base_length)"/>
+  <xacro:property name="base_width" value="$(arg base_width)"/>
+  <xacro:property name="base_height" value="$(arg base_height)"/>
+  <xacro:property name="lidar_height" value="$(arg lidar_height)"/>
+
+  <!-- Total mass is what the physics engine sees; payload scaling elsewhere in the
+       stack (SafetyGate's k, PayloadJerkAdapter's limits) keys off payload_kg. -->
+  <xacro:property name="total_mass" value="${base_mass_kg + payload_kg}"/>
+
+  <!-- base_link sits at the drive-axle height, so z=0 of base_link is wheel_radius
+       above the ground. Sensor heights given from ground are converted here. -->
+  <xacro:property name="lidar_z_in_base" value="${lidar_height - wheel_radius}"/>
+  <xacro:property name="caster_radius" value="${wheel_radius / 2.0}"/>
+
+  <!-- Drive wheels sit AFT of centre, with a single caster forward: the classic
+       differential-drive tricycle. The three ground contacts are statically
+       determinate, so the chassis is free to pitch as the caster rides over a slope
+       while the centre of mass stays well inside the support polygon.
+
+       Two earlier layouts were measured and rejected. Wheels on the centre line with
+       one front caster puts the centre of mass exactly on the rear edge of the
+       support triangle: it looked level at rest and then rocked through 24.6 degrees
+       on an 8 degree ramp. Adding a rear caster cured the rocking by making the base
+       a rigid four-point body - which then could not pitch at all, and jammed solid
+       against the ramp toe while its wheels kept turning. -->
+  <xacro:property name="wheel_x" value="${-0.20 * base_length}"/>
+
+  <xacro:property name="wheel_mass" value="${0.04 * total_mass}"/>
+  <xacro:property name="body_mass" value="${total_mass - 2.0 * wheel_mass}"/>
+
+  <!-- ============================ Links ============================ -->
+
+  <link name="${prefix}base_footprint"/>
+
+  <joint name="${prefix}base_joint" type="fixed">
+    <parent link="${prefix}base_footprint"/>
+    <child link="${prefix}base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${prefix}base_link">
+    <visual>
+      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+      <material name="amr_body">
+        <color rgba="0.25 0.35 0.55 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <mass value="${body_mass}"/>
+      <!-- Solid-box inertia about the box centre. -->
+      <inertia
+        ixx="${body_mass * (base_width * base_width + base_height * base_height) / 12.0}"
+        ixy="0.0" ixz="0.0"
+        iyy="${body_mass * (base_length * base_length + base_height * base_height) / 12.0}"
+        iyz="0.0"
+        izz="${body_mass * (base_length * base_length + base_width * base_width) / 12.0}"/>
+    </inertial>
+  </link>
+
+  <!-- Drive wheels. reflect=+1 is left, -1 is right. -->
+  <xacro:macro name="drive_wheel" params="side reflect">
+    <link name="${prefix}${side}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="amr_wheel">
+          <color rgba="0.1 0.1 0.1 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <inertia
+          ixx="${wheel_mass * (3.0 * wheel_radius * wheel_radius
+                               + wheel_width * wheel_width) / 12.0}"
+          ixy="0.0" ixz="0.0"
+          iyy="${wheel_mass * (3.0 * wheel_radius * wheel_radius
+                               + wheel_width * wheel_width) / 12.0}"
+          iyz="0.0"
+          izz="${wheel_mass * wheel_radius * wheel_radius / 2.0}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}${side}_wheel_joint" type="continuous">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}${side}_wheel_link"/>
+      <origin xyz="${wheel_x} ${reflect * wheel_separation / 2.0} 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:drive_wheel side="left" reflect="1"/>
+  <xacro:drive_wheel side="right" reflect="-1"/>
+
+  <!-- Single passive front caster, kept low-friction so it does not fight the
+       differential drive. See the wheel_x note above for why there is exactly one. -->
+  <xacro:macro name="caster" params="side reflect">
+    <link name="${prefix}${side}_caster_link">
+      <visual>
+        <geometry>
+          <sphere radius="${caster_radius}"/>
+        </geometry>
+        <material name="amr_caster">
+          <color rgba="0.3 0.3 0.3 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <sphere radius="${caster_radius}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="${0.005 * total_mass}"/>
+        <inertia
+          ixx="${0.002 * total_mass * caster_radius * caster_radius}"
+          ixy="0.0" ixz="0.0"
+          iyy="${0.002 * total_mass * caster_radius * caster_radius}"
+          iyz="0.0"
+          izz="${0.002 * total_mass * caster_radius * caster_radius}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}${side}_caster_joint" type="fixed">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}${side}_caster_link"/>
+      <origin
+        xyz="${reflect * (base_length / 2.0 - caster_radius)} 0
+             ${caster_radius - wheel_radius}"
+        rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:caster side="front" reflect="1"/>
+
+  <!-- 2D LiDAR. Height above ground is the tunable that smoke test 2 informs. -->
+  <link name="${prefix}laser">
+    <visual>
+      <geometry>
+        <cylinder radius="0.04" length="0.05"/>
+      </geometry>
+      <material name="amr_lidar">
+        <color rgba="0.8 0.2 0.2 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="1e-4" ixy="0.0" ixz="0.0" iyy="1e-4" iyz="0.0" izz="1e-4"/>
+    </inertial>
+  </link>
+
+  <joint name="${prefix}laser_joint" type="fixed">
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}laser"/>
+    <origin xyz="${base_length / 2.0 - 0.06} 0 ${lidar_z_in_base}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="${prefix}imu_link">
+    <inertial>
+      <mass value="0.02"/>
+      <inertia ixx="1e-6" ixy="0.0" ixz="0.0" iyy="1e-6" iyz="0.0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="${prefix}imu_joint" type="fixed">
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}imu_link"/>
+    <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Gazebo sensors, materials and the differential drive system. -->
+  <!-- Relative include: resolves both in-source and from the installed share/
+       directory, and avoids depending on the package index being on the path. -->
+  <xacro:include filename="amr_gazebo.xacro"/>
+
+</robot>

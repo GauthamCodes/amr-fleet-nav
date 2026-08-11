@@ -1,0 +1,64 @@
+# ============================================================================
+# Standalone nav2_costmap_2d parameters for SMOKE TEST 1.
+#
+# This runs the STOCK nav2_costmap_2d executable as a measurement instrument. It is
+# not the Phase 1 navigation bringup and shares nothing with it. The question it
+# answers is narrow: does a Gazebo actor that reaches /scan also become a lethal
+# obstacle in a real Nav2 obstacle layer?
+#
+# The static layer is deliberately absent - there is no map in this test, and its
+# absence keeps every lethal cell attributable to the laser.
+# ============================================================================
+
+costmap:
+  costmap:
+    ros__parameters:
+      use_sim_time: true
+
+      global_frame: amr1/odom
+      robot_base_frame: amr1/base_footprint
+
+      update_frequency: 5.0
+      publish_frequency: 5.0
+      resolution: 0.05
+
+      # Rolling window: no map server involved.
+      rolling_window: true
+      width: 12
+      height: 12
+
+      footprint_padding: 0.01
+      robot_radius: 0.30
+
+      plugins: ["obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /amr1/scan
+          # Left empty deliberately: the layer then uses the frame_id Gazebo stamped on
+          # the message, which is tied into the TF tree by an identity transform from
+          # amr1/laser. Hardcoding a frame here would mask a broken TF chain.
+          sensor_frame: ""
+          data_type: "LaserScan"
+          clearing: true
+          marking: true
+          # Generous vertical acceptance: the point of the test is to find out what the
+          # laser reports, not to filter it.
+          min_obstacle_height: -1.0
+          max_obstacle_height: 3.0
+          obstacle_max_range: 11.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 11.5
+          raytrace_min_range: 0.0
+          inf_is_valid: false
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        inflation_radius: 0.40
+        cost_scaling_factor: 3.0
+
+      always_send_full_costmap: true

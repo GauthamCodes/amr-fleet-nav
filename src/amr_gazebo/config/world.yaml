@@ -1,0 +1,74 @@
+# ============================================================================
+# world.yaml - parameters for the warehouse world.
+#
+# The ramp is described by an ANGLE. Its run, its slope length and the pose of
+# the inclined slab are all derived from that angle inside warehouse.sdf.xacro.
+# Changing ramp_angle_deg reshapes the ramp correctly with no vertex editing,
+# which matters because Phase 4 tunes traversability cost against ramp angle and
+# Phase 2 sizes PitchGate against the pitch the ramp induces.
+#
+# UNITS: metres and degrees.
+# ============================================================================
+
+world_name: warehouse
+
+# ---- Levels -----------------------------------------------------------------
+# Two flat plateaus at different heights, joined by one shallow ramp.
+ramp_angle_deg: 8.0
+upper_plateau_height: 0.50
+ramp_width: 2.50
+ramp_thickness: 0.40
+
+lower_plateau:
+  x_min: -14.0
+  x_max: 2.4          # ramp toe lands here
+  y_min: -9.0
+  y_max: 9.0
+
+upper_plateau:
+  x_min: 6.0          # ramp crest
+  x_max: 18.0
+  y_min: -9.0
+  y_max: 9.0
+
+# RESERVED - Phase 4 second ramp.
+#
+# Phase 0 ships ONE ramp, as specified. Phase 4's experiment ("a flat alternative
+# exists -> the ramp is avoided; the flat route is blocked -> the ramp is taken")
+# needs the upper plateau to be a SHORTCUT between two points on the lower level,
+# which takes a second ramp descending at the far end. The footprint below is kept
+# clear of racks so that ramp can be added without moving anything else.
+#
+# reserved_second_ramp:
+#   crest_x: 18.0
+#   descends_toward: +x
+#   y_centre: 0.0
+#   width: 2.50
+
+# ---- Storage racks ----------------------------------------------------------
+# Plain boxes, no imported meshes: the target GPU has 6 GB and Gazebo scenes here
+# stay deliberately light.
+rack:
+  rows: 2             # rows of racks, forming one aisle between them
+  per_row: 5
+  size_x: 2.40
+  size_y: 0.90
+  size_z: 2.00
+  spacing_x: 3.60     # centre-to-centre along a row
+  row_y: 3.20         # +/- this y, giving a 2*3.2 - 0.9 = 5.5 m aisle
+  first_x: -12.0
+
+# ---- Moving obstacles -------------------------------------------------------
+# Verified in smoke test 1 to be visible to the LiDAR and to reach the Nav2
+# obstacle layer as lethal cells. They are NOT physics entities and cannot
+# generate contacts; navigation must avoid them, they will never stop the robot.
+actors:
+  - name: pedestrian_1        # walks the length of the main aisle
+    path: [[-11.0, 0.0], [-1.0, 0.0]]
+    period_s: 16.0
+  - name: pedestrian_2        # crosses the aisle near the ramp approach
+    path: [[0.5, -5.0], [0.5, 5.0]]
+    period_s: 14.0
+  - name: pedestrian_3        # patrols the upper plateau
+    path: [[9.0, -4.0], [9.0, 4.0]]
+    period_s: 12.0

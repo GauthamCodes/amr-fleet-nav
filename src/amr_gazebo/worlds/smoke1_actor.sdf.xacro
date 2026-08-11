@@ -1,0 +1,190 @@
+<?xml version="1.0" ?>
+<!--
+  smoke1_actor.sdf.xacro - minimal world for SMOKE TEST 1.
+
+  PURPOSE
+    Determine whether a Gazebo <actor> is visible to a gpu_lidar. Gazebo actors are
+    declared with only <skin>, <animation> and <script>; the SDFormat 1.11 actor spec
+    permits <link> but the shipped example worlds define none, so an actor may well be a
+    rendering-only entity. If actors are invisible to the LiDAR then every downstream
+    dynamic-obstacle requirement - safety override, conflict prediction, obstacle layer -
+    is resting on nothing, so this is settled before any other Phase 0 work.
+
+  EXPERIMENTAL DESIGN
+    The world is deliberately almost empty, so any return in the actor's bearing sector
+    can only have come from the actor.
+
+    A CONTROL BOX of known size sits at a known pose in a different bearing sector. It has
+    ordinary collision geometry, so it MUST be visible. The control turns an ambiguous
+    result into a conclusive one: if the box is seen and the actor is not, the actor is
+    genuinely invisible rather than the LiDAR being mis-configured, mis-mounted, out of
+    range, or pointed at the sky.
+-->
+<sdf version="1.9" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Actor sweeps across the robot's field of view at this distance. -->
+  <xacro:property name="actor_x" value="3.0"/>
+  <xacro:property name="actor_y_min" value="-2.0"/>
+  <xacro:property name="actor_y_max" value="2.0"/>
+  <!-- The Mingfei actor skeleton's root sits about 1 m above its feet, so the
+       waypoint z places the feet on the ground rather than the hips. -->
+  <xacro:property name="actor_z" value="1.0"/>
+
+  <!-- Control obstacle: ordinary geometry that the LiDAR must be able to see. -->
+  <xacro:property name="control_x" value="3.0"/>
+  <xacro:property name="control_y" value="-3.5"/>
+  <xacro:property name="control_size" value="0.4"/>
+  <xacro:property name="control_height" value="1.0"/>
+
+  <world name="smoke1">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <!-- IMU sensors are NOT handled by the generic Sensors system; they need their
+         own system plugin. Without it Gazebo still advertises the topic, so the
+         sensor looks alive from `gz topic -l` while publishing nothing at all. -->
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>60 60</size></plane>
+          </geometry>
+          <surface>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>60 60</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.75 1</ambient>
+            <diffuse>0.75 0.75 0.75 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== CONTROL OBSTACLE ====================
+         Ordinary model with collision geometry. Must appear in /scan.
+         If this is missing from the scan the test rig itself is broken and the
+         actor result carries no information. -->
+    <model name="control_box">
+      <static>true</static>
+      <pose>${control_x} ${control_y} ${control_height / 2.0} 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>${control_size} ${control_size} ${control_height}</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>${control_size} ${control_size} ${control_height}</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.6 0.1 1</ambient>
+            <diffuse>0.1 0.6 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== RENDER WITNESS ====================
+         A camera watching the actor's path. gpu_lidar raycasts against the RENDERING
+         scene, so "the LiDAR cannot see the actor" has two very different causes:
+         the actor never rendered at all, or it renders but is excluded from ray
+         queries. The camera separates them. If the image changes over time the actor
+         is being drawn; if the image is static the actor never loaded and the LiDAR
+         result would be meaningless. -->
+    <model name="render_witness">
+      <static>true</static>
+      <pose>-2.0 0 1.0 0 0 0</pose>
+      <link name="link">
+        <sensor name="witness_camera" type="camera">
+          <topic>smoke1/witness_camera</topic>
+          <update_rate>10</update_rate>
+          <always_on>1</always_on>
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image>
+              <width>160</width>
+              <height>120</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip><near>0.1</near><far>50</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- ==================== SUBJECT UNDER TEST ====================
+         A standard Gazebo actor: skin + animation + scripted trajectory, exactly as
+         the shipped example worlds declare them. No <link>, therefore no collision. -->
+    <actor name="pedestrian_1">
+      <skin>
+        <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walk">
+        <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+      <script>
+        <loop>true</loop>
+        <delay_start>0.0</delay_start>
+        <auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint>
+            <time>0</time>
+            <pose>${actor_x} ${actor_y_min} ${actor_z} 0 0 1.5708</pose>
+          </waypoint>
+          <waypoint>
+            <time>8</time>
+            <pose>${actor_x} ${actor_y_max} ${actor_z} 0 0 1.5708</pose>
+          </waypoint>
+          <waypoint>
+            <time>9</time>
+            <pose>${actor_x} ${actor_y_max} ${actor_z} 0 0 -1.5708</pose>
+          </waypoint>
+          <waypoint>
+            <time>17</time>
+            <pose>${actor_x} ${actor_y_min} ${actor_z} 0 0 -1.5708</pose>
+          </waypoint>
+          <waypoint>
+            <time>18</time>
+            <pose>${actor_x} ${actor_y_min} ${actor_z} 0 0 1.5708</pose>
+          </waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+  </world>
+</sdf>

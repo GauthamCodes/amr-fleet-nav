@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>amr_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    System composition only. Modular launch includes that assemble simulation, per-robot
+    sensor validation, SLAM, Nav2, motion smoothing, traffic control and safety into a
+    running fleet. Also hosts the launch-file refactoring deliverable.
+    SKELETON: composition starts in Phase 1. Phase 0 smoke tests deliberately live in
+    amr_gazebo, since they are environment measurements rather than system composition.
+  </description>
+  <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>amr_description</exec_depend>
+  <exec_depend>amr_gazebo</exec_depend>
+  <exec_depend>amr_navigation</exec_depend>
+  <exec_depend>amr_bsp</exec_depend>
+  <exec_depend>amr_safety</exec_depend>
+  <exec_depend>amr_motion</exec_depend>
+  <exec_depend>amr_fleet_control</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

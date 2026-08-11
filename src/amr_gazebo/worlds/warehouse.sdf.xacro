@@ -1,0 +1,288 @@
+<?xml version="1.0" ?>
+<!--
+  warehouse.sdf.xacro - two plateaus at different heights joined by one shallow ramp,
+  static racks forming aisles, and moving pedestrians.
+
+  RAMP GEOMETRY IS DERIVED, NOT DRAWN
+    Only the ANGLE is given. The run, the slope length and the pose of the inclined slab
+    all follow from it. Changing ramp_angle_deg produces a correct ramp with no vertex
+    editing, which is what lets Phase 2 size PitchGate and Phase 4 tune traversability
+    cost against a real variable rather than a hand-fitted mesh.
+
+    The slab is rotated about Y by -ramp_angle so its +x end rises, then displaced along
+    its own downward normal by half its thickness. That places the TOP FACE exactly on
+    the line from the toe to the crest - the surface the robot drives on is the surface
+    the angle describes. It also sinks the slab into the floor, so there is no lip at the
+    toe for the robot to bump over; a lip would inject a pitch transient into smoke test 2
+    and corrupt the very measurement the ramp exists to produce.
+-->
+<sdf version="1.9" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==== Parameters (mirrored from config/world.yaml) ==== -->
+  <xacro:arg name="ramp_angle_deg" default="8.0"/>
+  <xacro:arg name="upper_plateau_height" default="0.50"/>
+  <xacro:arg name="ramp_width" default="2.50"/>
+  <xacro:arg name="ramp_thickness" default="0.40"/>
+  <!-- Smoke test 2 measures ramp-induced phantom ground returns. A pedestrian
+       wandering into the forward scan during that run would be indistinguishable
+       from the effect being measured, so actors can be switched off. -->
+  <xacro:arg name="with_actors" default="true"/>
+
+  <xacro:property name="ramp_angle_deg" value="$(arg ramp_angle_deg)"/>
+  <xacro:property name="ramp_angle" value="${radians(ramp_angle_deg)}"/>
+  <xacro:property name="rise" value="$(arg upper_plateau_height)"/>
+  <xacro:property name="ramp_width" value="$(arg ramp_width)"/>
+  <xacro:property name="ramp_t" value="$(arg ramp_thickness)"/>
+
+  <!-- Derived ramp geometry. -->
+  <xacro:property name="run" value="${rise / tan(ramp_angle)}"/>
+  <xacro:property name="slope_len" value="${sqrt(run * run + rise * rise)}"/>
+
+  <!-- The slab is extended downhill past the toe and left buried under the floor.
+       Without this the ramp's top face meets the ground plane in a knife edge exactly
+       at z=0: two coincident surfaces meeting at a point, which the contact solver
+       resolves as a step. Ground truth showed the robot halting dead at the toe with
+       its wheels still turning - odometry then reported a journey it never made.
+       Burying the leading edge lets the surface emerge from under the floor instead. -->
+  <xacro:property name="toe_ext" value="1.50"/>
+  <xacro:property name="slab_len" value="${slope_len + toe_ext}"/>
+
+  <xacro:property name="upper_x_min" value="6.0"/>
+  <xacro:property name="upper_x_max" value="18.0"/>
+  <xacro:property name="plateau_y_min" value="-9.0"/>
+  <xacro:property name="plateau_y_max" value="9.0"/>
+  <xacro:property name="plateau_span_y" value="${plateau_y_max - plateau_y_min}"/>
+  <xacro:property name="upper_span_x" value="${upper_x_max - upper_x_min}"/>
+
+  <!-- Ramp toe on the lower floor, crest at the plateau edge. -->
+  <xacro:property name="toe_x" value="${upper_x_min - run}"/>
+  <!-- Surface centre of the EXTENDED slab: the nominal centre shifted downhill by
+       half the extension, along the slope direction. -->
+  <xacro:property name="surface_cx"
+                  value="${(toe_x + upper_x_min) / 2.0 - (toe_ext / 2.0) * cos(ramp_angle)}"/>
+  <xacro:property name="surface_cz"
+                  value="${rise / 2.0 - (toe_ext / 2.0) * sin(ramp_angle)}"/>
+  <!-- Slab centre = surface centre displaced along the inward normal
+       (-sin a, 0, cos a) by half the thickness. -->
+  <xacro:property name="ramp_cx" value="${surface_cx + (ramp_t / 2.0) * sin(ramp_angle)}"/>
+  <xacro:property name="ramp_cz" value="${surface_cz - (ramp_t / 2.0) * cos(ramp_angle)}"/>
+
+  <!-- ==== Rack layout ==== -->
+  <xacro:property name="rack_sx" value="2.40"/>
+  <xacro:property name="rack_sy" value="0.90"/>
+  <xacro:property name="rack_sz" value="2.00"/>
+  <xacro:property name="rack_spacing" value="3.60"/>
+  <xacro:property name="rack_row_y" value="3.20"/>
+  <xacro:property name="rack_first_x" value="-12.0"/>
+  <xacro:property name="rack_per_row" value="5"/>
+
+  <world name="warehouse">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <!-- IMU sensors need their own system plugin; the generic Sensors system does
+         not serve them. Without this the topic is advertised but stays silent. -->
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.75 0.8 0.85 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 12 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <!-- ==================== Lower level ==================== -->
+    <model name="lower_floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>80 80</size></plane>
+          </geometry>
+          <surface>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>80 80</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.72 1</ambient>
+            <diffuse>0.7 0.7 0.72 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== Upper plateau ==================== -->
+    <model name="upper_plateau">
+      <static>true</static>
+      <pose>${(upper_x_min + upper_x_max) / 2.0} 0 ${rise / 2.0} 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>${upper_span_x} ${plateau_span_y} ${rise}</size></box>
+          </geometry>
+          <surface>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>${upper_span_x} ${plateau_span_y} ${rise}</size></box>
+          </geometry>
+          <material>
+            <ambient>0.62 0.64 0.68 1</ambient>
+            <diffuse>0.62 0.64 0.68 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== The ramp ==================== -->
+    <model name="ramp">
+      <static>true</static>
+      <pose>${ramp_cx} 0 ${ramp_cz} 0 ${-ramp_angle} 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>${slab_len} ${ramp_width} ${ramp_t}</size></box>
+          </geometry>
+          <surface>
+            <!-- High friction: a slick ramp makes the robot spin its wheels and
+                 never reach the pitch this world exists to produce. -->
+            <friction><ode><mu>1.2</mu><mu2>1.2</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>${slab_len} ${ramp_width} ${ramp_t}</size></box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.40 0.35 1</ambient>
+            <diffuse>0.55 0.48 0.40 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== Storage racks ==================== -->
+    <xacro:macro name="rack" params="name x y">
+      <model name="${name}">
+        <static>true</static>
+        <pose>${x} ${y} ${rack_sz / 2.0} 0 0 0</pose>
+        <link name="link">
+          <collision name="collision">
+            <geometry>
+              <box><size>${rack_sx} ${rack_sy} ${rack_sz}</size></box>
+            </geometry>
+          </collision>
+          <visual name="visual">
+            <geometry>
+              <box><size>${rack_sx} ${rack_sy} ${rack_sz}</size></box>
+            </geometry>
+            <material>
+              <ambient>0.35 0.28 0.18 1</ambient>
+              <diffuse>0.50 0.38 0.22 1</diffuse>
+            </material>
+          </visual>
+        </link>
+      </model>
+    </xacro:macro>
+
+    <!-- Recursive emission: two rows of racks with a drivable aisle between them. -->
+    <xacro:macro name="rack_row" params="side y index:=0">
+      <xacro:if value="${index &lt; rack_per_row}">
+        <xacro:rack name="rack_${side}_${index}"
+                    x="${rack_first_x + index * rack_spacing}"
+                    y="${y}"/>
+        <xacro:rack_row side="${side}" y="${y}" index="${index + 1}"/>
+      </xacro:if>
+    </xacro:macro>
+
+    <xacro:rack_row side="north" y="${rack_row_y}"/>
+    <xacro:rack_row side="south" y="${-rack_row_y}"/>
+
+    <!-- ==================== Moving obstacles ====================
+         Confirmed in smoke test 1: visible to the LiDAR, reaching the Nav2
+         obstacle layer as lethal cells. Not physics entities - they cannot
+         collide, so navigation must avoid them rather than be stopped by them. -->
+    <xacro:macro name="pedestrian" params="name x0 y0 x1 y1 half_period yaw_out yaw_back z:=1.0">
+      <actor name="${name}">
+        <skin>
+          <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+          <scale>1.0</scale>
+        </skin>
+        <animation name="walk">
+          <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+          <interpolate_x>true</interpolate_x>
+        </animation>
+        <script>
+          <loop>true</loop>
+          <auto_start>true</auto_start>
+          <trajectory id="0" type="walk">
+            <waypoint>
+              <time>0</time><pose>${x0} ${y0} ${z} 0 0 ${yaw_out}</pose>
+            </waypoint>
+            <waypoint>
+              <time>${half_period}</time>
+              <pose>${x1} ${y1} ${z} 0 0 ${yaw_out}</pose>
+            </waypoint>
+            <waypoint>
+              <time>${half_period + 1}</time>
+              <pose>${x1} ${y1} ${z} 0 0 ${yaw_back}</pose>
+            </waypoint>
+            <waypoint>
+              <time>${2 * half_period + 1}</time>
+              <pose>${x0} ${y0} ${z} 0 0 ${yaw_back}</pose>
+            </waypoint>
+            <waypoint>
+              <time>${2 * half_period + 2}</time>
+              <pose>${x0} ${y0} ${z} 0 0 ${yaw_out}</pose>
+            </waypoint>
+          </trajectory>
+        </script>
+      </actor>
+    </xacro:macro>
+
+    <xacro:if value="${'$(arg with_actors)'.lower() == 'true'}">
+    <!-- Along the main aisle. -->
+    <xacro:pedestrian name="pedestrian_1" x0="-11.0" y0="0.0" x1="-1.0" y1="0.0"
+                      half_period="8" yaw_out="0" yaw_back="3.1416"/>
+    <!-- Across the ramp approach: this one walks into the robot's path. -->
+    <xacro:pedestrian name="pedestrian_2" x0="0.5" y0="-5.0" x1="0.5" y1="5.0"
+                      half_period="7" yaw_out="1.5708" yaw_back="-1.5708"/>
+    <!-- On the upper plateau. The skeleton root sits ~1 m above the feet, so the
+         waypoint z is plateau height + 1.0 to stand the actor ON the plateau rather
+         than sunk into it. -->
+    <xacro:pedestrian name="pedestrian_3" x0="9.0" y0="-4.0" x1="9.0" y1="4.0"
+                      half_period="6" yaw_out="1.5708" yaw_back="-1.5708"
+                      z="${rise + 1.0}"/>
+    </xacro:if>
+
+  </world>
+</sdf>

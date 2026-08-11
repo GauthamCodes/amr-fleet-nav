@@ -1,0 +1,68 @@
+# ============================================================================
+# fleet.yaml - the single typed robot list for the AMR fleet.
+#
+# This file is the ONLY place a robot difference is expressed. Launch files loop
+# over this list; the same amr.urdf.xacro is processed once per entry with that
+# entry's values as xacro arguments. There is no per-robot xacro, no per-robot
+# launch file, and no "if robot == amr1" anywhere in the codebase.
+#
+# Scaling the fleet is an edit to this file: appending an amr3 block spawns a
+# third robot with its own namespace, frames, limits and Nav2 stack. That is what
+# "configuration-driven scaling" means here - it is not free, it is bounded to
+# this file.
+#
+# UNITS
+#   *_kg              kilograms
+#   wheel_*           metres
+#   lidar_height      metres ABOVE GROUND (not above base_link)
+#   max_vel_x         m/s
+#   max_accel_x       m/s^2   (positive)
+#   max_decel_x       m/s^2   (negative)
+#   max_vel_theta     rad/s
+#   max_accel_theta   rad/s^2
+#   spawn.yaw         radians
+# ============================================================================
+
+fleet:
+
+  # --------------------------------------------------------------------------
+  # AMR-1 "Mapper / Lead" - heavier, higher payload capacity, lower acceleration.
+  # Per the assignment: focus on accurate global localization and path planning.
+  # --------------------------------------------------------------------------
+  - name: amr1
+    type: mapper_lead
+    base_mass_kg: 30.0
+    payload_kg: 60.0
+    wheel_separation: 0.44
+    wheel_radius: 0.10
+    base_length: 0.70
+    base_width: 0.45
+    base_height: 0.20
+    lidar_height: 0.20
+    max_vel_x: 0.60
+    max_accel_x: 0.40
+    max_decel_x: -0.80
+    max_vel_theta: 1.00
+    max_accel_theta: 1.20
+    spawn: {x: -8.0, y: -3.0, z: 0.15, yaw: 0.0}
+
+  # --------------------------------------------------------------------------
+  # AMR-2 "Scout / Follower" - lighter, lower payload, higher acceleration.
+  # Per the assignment: focus on speed and dynamic obstacle avoidance.
+  # --------------------------------------------------------------------------
+  - name: amr2
+    type: scout_follower
+    base_mass_kg: 18.0
+    payload_kg: 5.0
+    wheel_separation: 0.36
+    wheel_radius: 0.10
+    base_length: 0.55
+    base_width: 0.38
+    base_height: 0.18
+    lidar_height: 0.20
+    max_vel_x: 1.00
+    max_accel_x: 1.00
+    max_decel_x: -1.40
+    max_vel_theta: 1.80
+    max_accel_theta: 2.50
+    spawn: {x: -8.0, y: 3.0, z: 0.15, yaw: 0.0}
