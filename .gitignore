@@ -1,0 +1,13 @@
+build/
+install/
+log/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.vscode/
+.idea/
+*.swp
+rosbags/*.db3
+rosbags/*.mcap
+results/*.png
