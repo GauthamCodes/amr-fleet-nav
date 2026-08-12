@@ -1,6 +1,6 @@
 """Namespaced slam_toolbox for one robot.
 
-TWO THINGS HERE ARE EASY TO GET WRONG AND SILENT WHEN YOU DO.
+THREE THINGS HERE ARE EASY TO GET WRONG AND SILENT WHEN YOU DO.
 
 1. async_slam_toolbox_node is a LIFECYCLE node in Jazzy. Launched as a plain Node it
    comes up 'unconfigured' and does nothing at all - no map, no map->odom transform, and
@@ -16,6 +16,29 @@ TWO THINGS HERE ARE EASY TO GET WRONG AND SILENT WHEN YOU DO.
    sensor frame_id from the link name. Adding the remap would make slam_toolbox
    subscribe to /amr1/tf, which nothing publishes, and it would sit waiting for
    transforms forever. Do not "fix" this.
+
+3. slam_toolbox PUBLISHES ITS MAP ON THE ABSOLUTE TOPIC "/map", which escapes the
+   namespace. Verified on a running stack:
+
+       $ ros2 topic list | grep map
+       /map
+       /map_metadata
+       $ ros2 topic info -v /map
+       Node name: slam_toolbox    Node namespace: /amr1
+
+   Same class of trap as its shipped scan_topic default of "/scan", which
+   slam_params.yaml already documents - and worse, because it is invisible until
+   something tries to consume the map. Two consequences, both silent:
+
+     - The map artifact cannot be saved. nav2's map_saver_cli subscribed to
+       /amr1/map, found no publisher, waited out its timeout and exited 1, which
+       reads exactly like a slow map rather than a missing topic.
+     - Phase 3 would have had TWO robots publishing their private maps onto one
+       global /map, each overwriting the other, with no error anywhere.
+
+   Remapped below onto the namespaced topic. The remap is written with the
+   absolute source name because that is the name slam_toolbox actually uses;
+   remapping "map" would match nothing.
 """
 
 from launch import LaunchDescription
@@ -55,6 +78,12 @@ def _setup(context, *args, **kwargs):
         output="screen",
         parameters=[params, {"use_sim_time": True}],
         # NO /tf remapping - see the module docstring.
+        # The map DOES get remapped, for the reason the docstring gives:
+        # slam_toolbox publishes it on the absolute /map regardless of namespace.
+        remappings=[
+            ("/map", f"/{robot_name}/map"),
+            ("/map_metadata", f"/{robot_name}/map_metadata"),
+        ],
     )
 
     configure = EmitEvent(

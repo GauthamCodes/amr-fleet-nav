@@ -37,6 +37,7 @@ def _setup(context, *args, **kwargs):
     headless = LaunchConfiguration("headless").perform(context).lower() != "false"
     with_actors = LaunchConfiguration("with_actors").perform(context)
     scan_topic = LaunchConfiguration("scan_topic").perform(context)
+    with_nav2 = LaunchConfiguration("with_nav2").perform(context).lower() != "false"
 
     fleet = {r["name"]: r for r in load_fleet()}
     if robot_name not in fleet:
@@ -76,12 +77,21 @@ def _setup(context, *args, **kwargs):
         )
 
     _ = nav_pkg
-    return simulation + [
+    staged = [
         # SLAM first: Nav2's global costmap needs the map->odom transform and the
         # /map topic before its static layer can configure.
         TimerAction(period=14.0, actions=[include("amr_navigation", "slam.launch.py")]),
-        TimerAction(period=22.0, actions=[include("amr_navigation", "nav2.launch.py")]),
     ]
+    # The survey run maps without navigating, and MPPI evaluates 1500 trajectories
+    # at 20 Hz whether or not a goal exists. Leaving Nav2 out of that run returns
+    # the CPU to the simulator, where it buys real-time factor and therefore scans.
+    if with_nav2:
+        staged.append(
+            TimerAction(
+                period=22.0, actions=[include("amr_navigation", "nav2.launch.py")]
+            )
+        )
+    return simulation + staged
 
 
 def generate_launch_description():
@@ -92,6 +102,12 @@ def generate_launch_description():
             DeclareLaunchArgument("headless", default_value="true"),
             DeclareLaunchArgument("with_actors", default_value="true"),
             DeclareLaunchArgument("scan_topic", default_value="scan"),
+            DeclareLaunchArgument(
+                "with_nav2",
+                default_value="true",
+                description="Bring up the Nav2 servers. false gives world + robot "
+                "+ SLAM only, which is what the mapping survey needs.",
+            ),
             OpaqueFunction(function=_setup),
         ]
     )

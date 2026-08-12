@@ -41,3 +41,4 @@ per-file-ignores =
     # main() entry points immediately below a module docstring that already
     # explains the script.
     src/amr_gazebo/scripts/*:D103
+    src/amr_navigation/scripts/*:D103

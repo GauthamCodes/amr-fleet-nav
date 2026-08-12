@@ -238,6 +238,35 @@
 
   <xacro:caster side="front" reflect="1"/>
 
+  <!-- Sensor mast. Visual only: the chassis already provides collision, and a mast
+       with collision geometry would be one more thing for the LiDAR to see. It exists
+       because lidar_height now puts the scan plane ABOVE the chassis rather than
+       inside it - see fleet.yaml - and a sensor floating in mid-air above the body
+       reads as a modelling mistake in a demo even when the physics is right. -->
+  <xacro:property name="mast_top" value="${lidar_height - wheel_radius}"/>
+  <xacro:property name="mast_bottom" value="${base_height}"/>
+  <link name="${prefix}mast">
+    <visual>
+      <origin xyz="0 0 ${(mast_top + mast_bottom) / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.06 0.06 ${mast_top - mast_bottom}"/>
+      </geometry>
+      <material name="amr_mast">
+        <color rgba="0.3 0.3 0.32 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0.0" ixz="0.0" iyy="1e-5" iyz="0.0" izz="1e-5"/>
+    </inertial>
+  </link>
+
+  <joint name="${prefix}mast_joint" type="fixed">
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}mast"/>
+    <origin xyz="${body_x + base_length / 2.0 - 0.06} 0 0" rpy="0 0 0"/>
+  </joint>
+
   <!-- 2D LiDAR. Height above ground is the tunable that smoke test 2 informs. -->
   <link name="${prefix}laser">
     <visual>

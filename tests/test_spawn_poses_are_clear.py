@@ -17,6 +17,7 @@ import os
 import pytest
 
 from amr_description.fleet_config import load_fleet, spawn_pose
+from amr_gazebo.world_geometry import render_world_root, static_boxes
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLEET_PATH = os.path.join(REPO_ROOT, "src", "amr_description", "config", "fleet.yaml")
@@ -29,41 +30,20 @@ WORLD_PATH = os.path.join(
 SPAWN_MARGIN = 0.25
 
 
-def _rendered_world():
-    """Render the warehouse world and return its root <world> element."""
-    import xml.etree.ElementTree as ET
-
-    import xacro
-
-    doc = xacro.process_file(WORLD_PATH, mappings={})
-    return ET.fromstring(doc.toxml()).find("world")
-
-
-def _box_obstacles(world):
-    """Return (name, cx, cy, sx, sy) for every static box model in the world.
+@pytest.fixture(scope="module")
+def obstacles():
+    """Every static box a robot could be spawned inside, as (name, cx, cy, sx, sy).
 
     The floor is a plane rather than a box, and the ramp is a rotated slab a robot is
     meant to drive onto, so neither is an obstacle for spawn purposes. Racks and the
     upper plateau are.
+
+    The extraction itself lives in ``amr_gazebo.world_geometry`` because Phase 1's
+    clearance measurement needs the same geometry; two parsers of the same file
+    would be exactly the kind of stale second copy this test exists to catch.
     """
-    obstacles = []
-    for model in world.findall("model"):
-        name = model.get("name")
-        if name in ("lower_floor", "ramp"):
-            continue
-        pose = model.find("pose")
-        box = model.find(".//collision/geometry/box/size")
-        if pose is None or box is None:
-            continue
-        px, py = (float(v) for v in pose.text.split()[:2])
-        sx, sy = (float(v) for v in box.text.split()[:2])
-        obstacles.append((name, px, py, sx, sy))
-    return obstacles
-
-
-@pytest.fixture(scope="module")
-def obstacles():
-    return _box_obstacles(_rendered_world())
+    boxes = static_boxes(render_world_root(WORLD_PATH), exclude=("lower_floor", "ramp"))
+    return [(b["name"], b["x"], b["y"], 2 * b["hx"], 2 * b["hy"]) for b in boxes]
 
 
 @pytest.fixture(scope="module")

@@ -70,6 +70,9 @@ def _substitutions(robot, scan_topic):
         "__ODOM_FRAME__": f["odom"],
         "__BASE_FRAME__": f["base"],
         "__SCAN_TOPIC__": scan_topic,
+        # Absolute: this is the topic slam.launch.py remaps slam_toolbox's
+        # namespace-escaping /map onto. See that file's docstring.
+        "__MAP_TOPIC__": f"/{robot['name']}/map",
         "__FOOTPRINT__": str(footprint_polygon(robot)),
         # Kinodynamic limits, identical to what the Gazebo DiffDrive plugin enforces.
         # A planner that models limits the plant will not deliver produces tracking

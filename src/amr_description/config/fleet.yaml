@@ -38,7 +38,15 @@ fleet:
     base_length: 0.70
     base_width: 0.45
     base_height: 0.20
-    lidar_height: 0.20
+    # ABOVE THE CHASSIS, not inside it. At the Phase 0 value of 0.20 m the scan
+    # plane sat exactly on the drive-wheel tops (2 * wheel_radius) and grazed
+    # them: 18 beams per scan returned 0.44-0.49 m off the robot's own wheels,
+    # slam_toolbox mapped them as static obstacles at the robot's own position,
+    # and the inflation around them enclosed the start cell so the global planner
+    # could not produce a path at all. See docs/SESSION_LOG.md, Phase 1.
+    # Constraint, asserted by tests/test_fleet_parameterization.py:
+    #     lidar_height > wheel_radius + base_height   (the chassis top)
+    lidar_height: 0.35
     max_vel_x: 0.60
     max_accel_x: 0.40
     max_decel_x: -0.80
@@ -63,7 +71,9 @@ fleet:
     base_length: 0.55
     base_width: 0.38
     base_height: 0.18
-    lidar_height: 0.20
+    # Same constraint as amr1; this chassis is 0.02 m lower, and the fleet shares
+    # one sensor mast height rather than deriving a different one per robot.
+    lidar_height: 0.35
     max_vel_x: 1.00
     max_accel_x: 1.00
     max_decel_x: -1.40

@@ -66,7 +66,70 @@ controller_server:
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 0.15
 
+    # ========================================================================
+    # CONTROLLER: RegulatedPurePursuit, NOT MPPI. THIS IS A DEPARTURE FROM
+    # docs/PLAN.md SECTION 1 AND IT IS FLAGGED, NOT SILENT.
+    #
+    # MPPI is configured, loads cleanly, and will not drive this robot. Measured
+    # over four runs on an otherwise identical stack:
+    #
+    #   commanded forward velocity        0.0034 m/s, near-constant
+    #   MPPI's own optimal trajectory     advances 0.4 mm per 0.05 s step
+    #   distance driven in 154 s          1.06 - 1.10 m, all of it recoveries
+    #   controller_server                 "Failed to make progress", every 10 s
+    #   goal result                       ABORTED
+    #
+    # Everything MPPI consumes was verified good on the same runs, which is what
+    # makes this a controller fault rather than a stack fault:
+    #   - global plan: 446 poses, 11.17 m, dense and correct to the goal
+    #   - MPPI's own transformed_global_plan: ~70 poses, 1.75 m, correct
+    #   - local costmap around the robot: entirely free, 8 x 8 m, 160 x 160
+    #   - published footprint: correct 0.70 x 0.45 polygon at the robot pose
+    #   - all 8 critics load with the weights below (checked in the node log)
+    #   - every FollowPath parameter reads back correctly via ros2 param dump
+    #   - TF, odometry and cmd_vel bridging all sound: the SAME stack drives
+    #     63.6 m under the survey node, and reaches this goal under this
+    #     controller in 20.5 s
+    #
+    # Bisected and RULED OUT as causes: CostCritic.consider_footprint (true and
+    # false both stall), regenerate_noises (false and true both stall), critic
+    # loading, parameter application, costmap occupancy, footprint parsing.
+    # Remaining suspects, untested: the acceleration bounds, which are the only
+    # large deviation left from stock (ax_max 0.4 against stock 3.0, taken from
+    # fleet.yaml because PLAN.md asks the planner's model to match the plant).
+    #
+    # The MPPI block is preserved verbatim below as FollowPath_mppi_deferred.
+    # Reverting is a rename of two keys once the cause is found. Nothing else in
+    # this stack assumes which controller is loaded.
+    #
+    # What is NOT given up by this substitution: RPP does its own footprint-based
+    # collision checking on the projected path (use_collision_detection), so the
+    # asymmetric footprint still gates motion, which was the reason MPPI ran with
+    # consider_footprint true.
+    # ========================================================================
     FollowPath:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: __VX_MAX__
+      lookahead_dist: 0.6
+      min_lookahead_dist: 0.3
+      max_lookahead_dist: 0.9
+      lookahead_time: 1.5
+      transform_tolerance: 0.2
+      use_velocity_scaled_lookahead_dist: true
+      min_approach_linear_velocity: 0.05
+      approach_velocity_scaling_dist: 0.6
+      use_collision_detection: true
+      max_allowed_time_to_collision_up_to_carrot: 1.0
+      use_regulated_linear_velocity_scaling: true
+      use_cost_regulated_linear_velocity_scaling: false
+      regulated_linear_scaling_min_radius: 0.9
+      regulated_linear_scaling_min_speed: 0.25
+      use_rotate_to_heading: true
+      rotate_to_heading_min_angle: 0.785
+      max_angular_accel: __AZ_MAX__
+      max_robot_pose_search_dist: 10.0
+
+    FollowPath_mppi_deferred:
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 56
       # MUST equal 1 / controller_frequency. Break the equality and MPPI stops
@@ -233,6 +296,13 @@ global_costmap:
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
+        # ABSOLUTE and explicit. The stock params omit this and let the layer
+        # resolve a relative "map" against its own node, which sits at
+        # /<robot>/global_costmap/global_costmap - a namespace deep enough that
+        # what the relative name resolves to is not obvious from reading it.
+        # slam.launch.py remaps slam_toolbox's escaped /map onto this topic;
+        # naming it here means the two ends are written down rather than assumed.
+        map_topic: __MAP_TOPIC__
         map_subscribe_transient_local: true
         subscribe_to_updates: true
       obstacle_layer:

@@ -161,3 +161,39 @@ def test_lidar_height_is_measured_from_the_ground(rendered, fleet):
 def test_spawn_poses_are_distinct(fleet):
     poses = [spawn_pose(robot)[:2] for robot in fleet]
     assert len(set(poses)) == len(poses), "two robots would spawn on top of each other"
+
+
+def test_the_scan_plane_clears_the_robots_own_wheels(fleet):
+    """The defect Phase 1 found the expensive way.
+
+    At lidar_height 0.20 m with wheel_radius 0.10 m the scan plane lay exactly on
+    the tops of the drive wheels. The LiDAR returned 18 beams per scan off its own
+    wheels at 0.44-0.49 m; slam_toolbox mapped those returns as static obstacles at
+    the robot's own position; the inflation layer grew them into a lethal blob
+    around the start cell; and the global planner then failed EVERY attempt with
+    "Failed to create plan with tolerance of: 0.500000" - having never published a
+    single path. Nothing upstream of the planner reported a fault.
+    """
+    for robot in fleet:
+        wheel_top = 2.0 * robot["wheel_radius"]
+        assert robot["lidar_height"] > wheel_top + 0.05, (
+            f"{robot['name']}: scan plane at {robot['lidar_height']} m grazes its "
+            f"own wheel tops at {wheel_top} m"
+        )
+
+
+def test_the_scan_plane_clears_the_chassis(fleet):
+    """A sensor buried inside the chassis box only works by backface culling.
+
+    The chassis spans wheel_radius to wheel_radius + base_height above the ground.
+    A scan plane inside that band sees nothing only because the renderer culls the
+    box's inward-facing surfaces - correct behaviour that no part of this project
+    controls or should depend on. Mounting the sensor above the chassis makes the
+    absence of self-returns a geometric fact instead of a rendering assumption.
+    """
+    for robot in fleet:
+        chassis_top = robot["wheel_radius"] + robot["base_height"]
+        assert robot["lidar_height"] > chassis_top, (
+            f"{robot['name']}: laser at {robot['lidar_height']} m is inside the "
+            f"chassis, which reaches {chassis_top} m"
+        )
