@@ -1,0 +1,86 @@
+# ============================================================================
+# slam_toolbox parameters - namespace-free template.
+#
+# Frame names and the scan topic are rewritten per robot at launch time by
+# amr_navigation/params.py, so this file never names a robot. Derived from
+# /opt/ros/jazzy/share/slam_toolbox/config/mapper_params_online_async.yaml.
+#
+# ASYNC, not sync: scan processing must not block while the robot is driving
+# continuously through the aisle.
+#
+# NOTE async_slam_toolbox_node is a LIFECYCLE node in Jazzy. Launched bare it
+# comes up 'unconfigured' and does nothing at all - no map, no TF, no error.
+# slam.launch.py emits the configure/activate transitions, mirroring upstream's
+# own online_async_launch.py.
+# ============================================================================
+
+slam_toolbox:
+  ros__parameters:
+    use_sim_time: true
+
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # Rewritten per robot: amr1/odom, amr1/map, amr1/base_footprint.
+    odom_frame: __ODOM_FRAME__
+    map_frame: __MAP_FRAME__
+    base_frame: __BASE_FRAME__
+    # Relative on purpose. slam_toolbox's shipped default is the ABSOLUTE "/scan",
+    # which escapes the namespace and silently subscribes to nothing.
+    scan_topic: __SCAN_TOPIC__
+
+    mode: mapping
+    debug_logging: false
+    throttle_scans: 1
+    transform_publish_period: 0.02
+    map_update_interval: 2.0
+    resolution: 0.05
+
+    # Matches the simulated sensor (lidar_range_max in fleet.yaml). The stock 20.0
+    # would invite the mapper to trust returns the sensor cannot produce.
+    max_laser_range: 12.0
+
+    minimum_time_interval: 0.5
+    transform_timeout: 0.3
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+    enable_interactive_mode: false
+
+    # A 5.5 m aisle with racks every 3.6 m gives frequent, well-conditioned scan
+    # geometry, so mapping more often than stock costs little and keeps the map
+    # crisp through turns.
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.3
+    minimum_travel_heading: 0.3
+    scan_buffer_size: 15
+    scan_buffer_maximum_scan_distance: 12.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    loop_search_maximum_distance: 3.0
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true

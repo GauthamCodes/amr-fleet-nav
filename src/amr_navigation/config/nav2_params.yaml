@@ -1,0 +1,315 @@
+# ============================================================================
+# Nav2 parameters - namespace-free template for one robot.
+#
+# Derived from /opt/ros/jazzy/share/nav2_bringup/params/nav2_params.yaml
+# (nav2_bringup 1.3.12). Re-rooted under the robot's namespace at launch time by
+# amr_navigation/params.py, which also rewrites the per-robot numbers from
+# fleet.yaml. This file names no robot and hardcodes no kinodynamic limit.
+#
+# DELIBERATELY ABSENT
+#   amcl, map_server   - Phase 1 maps with slam_toolbox; it does not localize
+#                        against a prior map.
+#   collision_monitor  - superseded by SafetyGate (docs/ENGINEERING_NOTES.md rule 1). SafetyGate
+#                        is a SERIAL, fail-closed gate, not a Nav2 plugin.
+#   velocity_smoother  - Phase 5's chaining point for PayloadJerkAdapter
+#                        (docs/ENGINEERING_NOTES.md rule 6). Adding it now would mean renaming
+#                        topics later.
+#   route_server, docking_server, loopback_simulator - not in scope.
+#
+# PHASE 2 READINESS
+#   The scan topic appears here as `topic: scan` under each obstacle layer and is
+#   rewritten from ONE place in params.py. When SensorBSP lands, that one
+#   substitution becomes `validated/scan` and THIS FILE DOES NOT CHANGE.
+# ============================================================================
+
+bt_navigator:
+  ros__parameters:
+    global_frame: __MAP_FRAME__
+    robot_base_frame: __BASE_FRAME__
+    # Relative, not the stock absolute "/odom" - an absolute name escapes the
+    # namespace and silently reads another robot's odometry once there are two.
+    odom_topic: odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+
+controller_server:
+  ros__parameters:
+    controller_frequency: 20.0
+    odom_topic: odom
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    # Declared explicitly rather than left to the default because Phase 2's
+    # SafetyGate must raise movement_time_allowance whenever it zeroes cmd_vel,
+    # or Nav2 sees a stuck robot and fires recovery behaviours mid-halt
+    # (docs/ENGINEERING_NOTES.md rule 2). A parameter that is not declared cannot be set.
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    general_goal_checker:
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      # Warehouse goals are rack faces, not open floor. The stock 0.25 m is more
+      # than half this robot's width.
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.15
+
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 56
+      # MUST equal 1 / controller_frequency. Break the equality and MPPI stops
+      # warm-starting from the previous control sequence, silently and for good.
+      model_dt: 0.05
+      batch_size: 1500
+      vx_std: 0.2
+      vy_std: 0.2
+      wz_std: 0.4
+      # Kinodynamic limits are rewritten per robot from fleet.yaml. The plant
+      # already enforces them (Gazebo DiffDrive), so the planner's model must
+      # match or every trajectory MPPI believes in is unachievable.
+      vx_max: __VX_MAX__
+      vx_min: __VX_MIN__
+      vy_max: 0.5
+      wz_max: __WZ_MAX__
+      ax_max: __AX_MAX__
+      # NEGATIVE: this is a deceleration limit, clamped as
+      # vx_last + model_dt * ax_min. A positive value inverts the clamp.
+      ax_min: __AX_MIN__
+      ay_max: 3.0
+      az_max: __AZ_MAX__
+      iteration_count: 1
+      prune_distance: 1.8
+      transform_tolerance: 0.2
+      temperature: 0.3
+      gamma: 0.015
+      motion_model: "DiffDrive"
+      visualize: false
+      regenerate_noises: false
+      TrajectoryVisualizer:
+        trajectory_step: 5
+        time_step: 3
+      AckermannConstraints:
+        min_turning_r: 0.2
+      # MPPI's critics default is an EMPTY LIST. It configures happily, reports
+      # "Configured MPPI Controller", and scores nothing at all.
+      critics:
+        - "ConstraintCritic"
+        - "CostCritic"
+        - "GoalCritic"
+        - "GoalAngleCritic"
+        - "PathAlignCritic"
+        - "PathFollowCritic"
+        - "PathAngleCritic"
+        - "PreferForwardCritic"
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.4
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.0
+        threshold_to_consider: 0.5
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.5
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.81
+        critical_cost: 300.0
+        # TRUE, unlike stock. The footprint is 1.85:1 and asymmetric about the
+        # rotation centre; scoring it as a disc hides exactly the orientations
+        # that clip a rack while turning in an aisle.
+        consider_footprint: true
+        collision_cost: 1000000.0
+        near_goal_distance: 1.0
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.5
+        offset_from_furthest: 20
+        use_path_orientations: false
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 5
+        threshold_to_consider: 1.4
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+        max_angle_to_furthest: 1.0
+        mode: 0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      # 10 Hz to match the lidar. The stock 5 Hz discards half the scans.
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      global_frame: __ODOM_FRAME__
+      robot_base_frame: __BASE_FRAME__
+      rolling_window: true
+      # 8 x 8 m, not the stock 3 x 3. MPPI's horizon is 56 * 0.05 = 2.8 s, which
+      # at 0.6 m/s reaches 1.68 m; a 3 m window leaves the far half of every
+      # sampled trajectory outside the costmap, where CostCritic cannot see it.
+      width: 8
+      height: 8
+      resolution: 0.05
+      # Rewritten per robot. Asymmetric about the origin because the origin is
+      # the drive axle - see fleet_config.footprint_polygon.
+      footprint: "__FOOTPRINT__"
+      footprint_padding: 0.03
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: __SCAN_TOPIC__
+          sensor_frame: ""
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          max_obstacle_height: 2.0
+          min_obstacle_height: -1.0
+          # 8.0, not the stock 2.5. Rack faces are 2.75 m from the aisle centre
+          # line, so at 2.5 m the robot never marks the racks it drives between.
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.0
+          # Clearing must out-range marking or a moving actor leaves a permanent
+          # phantom trail down the aisle that nothing ever erases.
+          raytrace_max_range: 10.0
+          raytrace_min_range: 0.0
+          inf_is_valid: false
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        # Must exceed the 0.54 m circumscribed radius of the asymmetric footprint
+        # while leaving the 5.5 m aisle traversable.
+        inflation_radius: 0.70
+        cost_scaling_factor: 2.5
+      always_send_full_costmap: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      # Phase 1 plans in the SLAM map. PLAN.md's fleet_map is a Phase 3 statement;
+      # there is no fleet map until FleetMapNode exists.
+      global_frame: __MAP_FRAME__
+      robot_base_frame: __BASE_FRAME__
+      resolution: 0.05
+      track_unknown_space: true
+      footprint: "__FOOTPRINT__"
+      footprint_padding: 0.03
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        subscribe_to_updates: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: __SCAN_TOPIC__
+          sensor_frame: ""
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          max_obstacle_height: 2.0
+          min_obstacle_height: -1.0
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 10.0
+          raytrace_min_range: 0.0
+          inf_is_valid: false
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        inflation_radius: 0.70
+        cost_scaling_factor: 2.5
+      always_send_full_costmap: true
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: false
+      allow_unknown: true
+
+smoother_server:
+  ros__parameters:
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: true
+
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    local_frame: __ODOM_FRAME__
+    global_frame: __MAP_FRAME__
+    robot_base_frame: __BASE_FRAME__
+    transform_tolerance: 0.2
+    simulate_ahead_time: 2.0
+    # Rewritten per robot from fleet.yaml.
+    max_rotational_vel: __WZ_MAX__
+    min_rotational_vel: 0.4
+    rotational_acc_lim: __AZ_MAX__
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 200

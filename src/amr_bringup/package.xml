@@ -22,6 +22,7 @@
   <exec_depend>amr_safety</exec_depend>
   <exec_depend>amr_motion</exec_depend>
   <exec_depend>amr_fleet_control</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
