@@ -9,20 +9,33 @@
     letting commands through. Enforces d_safe = k*v^2 + d_min using measured velocity from
     odometry, with a per-robot payload-scaled k and hysteresis on release. C++ because it
     sits in the command path and its latency is measured.
-    SKELETON: implemented in Phase 2.
+    The Python subpackage is the sizing model: it derives k from fleet.yaml, is what the
+    launch file passes to the node, and is what tests/test_safety_distance.py exercises.
   </description>
   <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>rcl_interfaces</depend>
+  <depend>diagnostic_msgs</depend>
 
   <exec_depend>twist_mux</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>amr_description</exec_depend>
+  <exec_depend>amr_bsp</exec_depend>
+  <!-- Evidence instruments only: safety_run.py sends a NavigateToPose goal and
+       counts recovery behaviours from the behaviour-tree log. The gate itself
+       depends on neither and must not. -->
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

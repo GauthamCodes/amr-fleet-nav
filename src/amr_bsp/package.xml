@@ -4,11 +4,11 @@
   <name>amr_bsp</name>
   <version>0.1.0</version>
   <description>
-    Board Support Package style sensor validation. A reusable SensorBSP base class plus IMU,
-    LiDAR and camera validators; the navigation stack consumes sensor data only after it has
-    passed through this layer. Includes PitchGate, which truncates ramp-induced phantom
-    ground returns. Republished messages preserve their ORIGINAL header timestamps.
-    SKELETON: implemented in Phase 2.
+    SensorBSP: a reusable validating relay plus IMU, LiDAR and camera validators, and the
+    PitchGate that truncates the ramp's phantom ground return using measured IMU pitch.
+    Nothing in the navigation stack subscribes to a raw sensor topic; everything reads this
+    package's validated output. Republished messages preserve their ORIGINAL header
+    timestamps, because rewriting them breaks TF and SLAM silently.
   </description>
   <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
   <license>Apache-2.0</license>
@@ -16,7 +16,12 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>amr_description</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -17,11 +17,13 @@ WHY TEMPLATE RENDERING RATHER THAN RewrittenYaml
     This mirrors ``amr_gazebo.world_builder.render_world``, which renders the world SDF
     the same way and for the same reason.
 
-TOPIC INDIRECTION FOR PHASE 2
-    ``SCAN_TOPIC`` is threaded through here rather than written into the YAML. Today it
-    resolves to ``scan``; when SensorBSP lands it becomes ``validated/scan`` and neither
-    ``nav2_params.yaml`` nor any launch file changes. That is what satisfies docs/ENGINEERING_NOTES.md
-    rule 8 without pre-building Phase 2.
+TOPIC INDIRECTION, RESOLVED IN PHASE 2
+    ``SCAN_TOPIC`` is threaded through here rather than written into the YAML. Phase 1
+    resolved it to ``scan``; Phase 2 points it at SensorBSP's validated output, and
+    neither ``nav2_params.yaml`` nor ``slam_params.yaml`` changed a character. The name
+    is imported from ``amr_bsp.topics`` rather than restated, so the producer and every
+    consumer cannot disagree about it - which is the only way docs/ENGINEERING_NOTES.md rule 8 is
+    checkable rather than merely asserted.
 """
 
 import os
@@ -30,11 +32,12 @@ import tempfile
 from ament_index_python.packages import get_package_share_directory
 import yaml
 
+from amr_bsp.topics import VALIDATED_SCAN
 from amr_description.fleet_config import footprint_polygon, frame_prefix
 
 #: Topic the navigation stack reads scans from, relative to the robot namespace.
-#: Phase 2 changes this ONE string to "validated/scan".
-SCAN_TOPIC = "scan"
+#: Nothing in the stack subscribes to the raw sensor (docs/ENGINEERING_NOTES.md rule 8).
+SCAN_TOPIC = VALIDATED_SCAN
 
 
 def config_dir():

@@ -16,7 +16,7 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Phase 0 measurement instruments, not fleet runtime nodes. Listed explicitly
+# Phase 0 measurement instruments, plus one Phase 2 plant node. Listed explicitly
 # rather than globbed: a glob is evaluated at configure time, so a newly added
 # script silently fails to install until CMake happens to re-run.
 install(
@@ -26,6 +26,7 @@ install(
     scripts/smoke2_measure.py
     scripts/bag_probe.py
     scripts/odom_rotation_check.py
+    scripts/drive_watchdog.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

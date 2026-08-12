@@ -23,7 +23,8 @@ application-import-names =
     amr_fleet_control,
     amr_gazebo,
     amr_motion,
-    amr_navigation
+    amr_navigation,
+    amr_safety
 import-order-style = google
 exclude =
     .git,
@@ -42,3 +43,5 @@ per-file-ignores =
     # explains the script.
     src/amr_gazebo/scripts/*:D103
     src/amr_navigation/scripts/*:D103
+    src/amr_bsp/scripts/*:D103
+    src/amr_safety/scripts/*:D103

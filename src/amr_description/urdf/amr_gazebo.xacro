@@ -89,6 +89,31 @@
     </sensor>
   </gazebo>
 
+  <!-- ==================== Forward camera ==================== -->
+  <xacro:if value="$(arg camera_enabled)">
+    <gazebo reference="${prefix}camera_link">
+      <sensor name="camera" type="camera">
+        <topic>${name}/camera/image_raw</topic>
+        <update_rate>$(arg camera_update_rate)</update_rate>
+        <always_on>1</always_on>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>$(arg camera_width)</width>
+            <height>$(arg camera_height)</height>
+            <!-- R8G8B8 bridges to the ROS encoding "rgb8", which is what
+                 amr_bsp.validators.CAMERA_ENCODINGS accepts. -->
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>15.0</far>
+          </clip>
+        </camera>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
   <!-- ==================== Systems ==================== -->
   <gazebo>
     <plugin filename="gz-sim-diff-drive-system"
@@ -108,7 +133,18 @@
       <max_angular_acceleration>$(arg max_accel_theta)</max_angular_acceleration>
       <min_angular_acceleration>${-1.0 * $(arg max_accel_theta)}</min_angular_acceleration>
 
-      <topic>${name}/cmd_vel</topic>
+      <!-- cmd_vel_plant, NOT cmd_vel. /amrN/cmd_vel is what SafetyGate publishes and
+           is the robot's command topic; this is the wheel controller's input, one hop
+           further in, behind amr_gazebo's drive_watchdog.
+
+           The watchdog exists because gz-sim 8.11.0's DiffDrive has no command
+           timeout - verified against the plugin binary, whose only cmd-related string
+           is the topic name. Without it, a SIGKILLed SafetyGate leaves the plant
+           rolling on the last velocity it latched, and "if the node dies, nothing
+           moves" (docs/ENGINEERING_NOTES.md rule 1) would be a claim the simulator cannot honour.
+           Real motor controllers stop when their command stream stops; the watchdog
+           models exactly that and belongs to the plant, not to the nav stack. -->
+      <topic>${name}/cmd_vel_plant</topic>
       <odom_topic>${name}/odom</odom_topic>
       <tf_topic>${name}/pose</tf_topic>
       <frame_id>${prefix}odom</frame_id>

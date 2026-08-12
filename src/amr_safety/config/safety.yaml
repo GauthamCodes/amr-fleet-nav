@@ -1,0 +1,85 @@
+# ============================================================================
+# safety.yaml - the FLEET-WIDE constants of the safety override.
+#
+# Per-robot numbers are deliberately NOT here. `k` in d_safe = k*v^2 + d_min is
+# derived from fleet.yaml's mass, payload and deceleration limit by
+# amr_safety.safety_model.stopping_gain, so a new robot gets a correctly scaled
+# safety distance from the same block that gives it a chassis. Duplicating `k`
+# here would let the two drift, and the one that drifts is the safety one.
+#
+# UNITS
+#   d_min, release_margin, gate_clearance_margin, self_return_margin   metres
+#   min_hold_s, *_timeout_s, *_s                                       seconds
+#   sector_half_angle                                                  radians
+#   brake_safety_factor                                                dimensionless
+#
+# [k] = s^2/m, so that k*v^2 yields metres. See PLAN.md section 6.
+# ============================================================================
+
+safety:
+
+  # --------------------------------------------------------------------------
+  # Sizing
+  # --------------------------------------------------------------------------
+
+  # Standoff held even at a standstill, so d_safe(0) == d_min exactly.
+  d_min: 0.30
+
+  # Hysteresis. Release needs clearance > d_stop + release_margin AND a minimum
+  # dwell. The margin is ~15x the LiDAR's 0.01 m noise sigma, so range noise on a
+  # stationary obstacle cannot produce halt/release chatter; the dwell covers an
+  # obstacle that crosses the sector boundary faster than the margin can damp.
+  release_margin: 0.15
+  min_hold_s: 0.30
+
+  # 1.0 means "exactly the physical model", i.e. k = 1/(2*a_eff) with no padding.
+  # The margin in this system comes from the derivation being conservative about
+  # payload, not from a fudge factor on top of it.
+  brake_safety_factor: 1.0
+
+  # --------------------------------------------------------------------------
+  # Interlock with PitchGate
+  # --------------------------------------------------------------------------
+
+  # Slack between the braking envelope and the tightest radius PitchGate is
+  # allowed to truncate to. Guarantees truncation can never remove an obstacle
+  # the gate would have had to stop for. Asserted by tests/test_safety_distance.py
+  # for every robot in the fleet.
+  gate_clearance_margin: 0.10
+
+  # --------------------------------------------------------------------------
+  # Runtime
+  # --------------------------------------------------------------------------
+
+  # No command in this long -> emit zero. Covers the upstream stack dying.
+  cmd_timeout_s: 0.5
+
+  # No scan in this long -> BLOCK. Fail-closed: an unknown world is treated as an
+  # occupied one. This is the opposite of what a mux does, which is the whole
+  # reason the gate is serial (docs/ENGINEERING_NOTES.md rule 1).
+  scan_timeout_s: 0.5
+
+  # Half-angle of the obstacle search sector, centred on the COMMANDED direction
+  # of travel. pi/2 is the full half-plane ahead of (or behind) the robot.
+  sector_half_angle: 1.5707963267948966
+
+  # Returns closer than this to the footprint polygon are discarded as possible
+  # self-hits. Phase 1 carried 0.05 m, which became the floor of its clearance
+  # instrument. With the LiDAR on a 0.35 m mast a self-return is geometrically
+  # impossible, so this drops to 0.01 m and the true minimum gets measured.
+  self_return_margin: 0.01
+
+  # --------------------------------------------------------------------------
+  # Recovery suppression (docs/ENGINEERING_NOTES.md rule 2: gating without notification is a bug)
+  # --------------------------------------------------------------------------
+
+  # Written to controller_server's progress_checker.movement_time_allowance while
+  # the gate is blocked. Large rather than infinite so the parameter stays a
+  # readable number in the evidence report.
+  recovery_allowance_s: 1.0e6
+
+  # On release, restore the original allowance once the robot has actually moved,
+  # or after this long, whichever comes first. Restoring a 10 s allowance onto a
+  # robot that has not started moving yet fires the very recovery behaviour the
+  # suppression exists to prevent.
+  restore_grace_s: 2.0

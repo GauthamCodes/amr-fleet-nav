@@ -28,6 +28,9 @@
   <exec_depend>amr_description</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>amr_costmap_plugins</exec_depend>
+  <!-- params.py imports the validated topic names from amr_bsp.topics, so the Nav2
+       templates and the BSP cannot disagree about what Nav2 subscribes to. -->
+  <exec_depend>amr_bsp</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

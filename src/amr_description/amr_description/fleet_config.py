@@ -43,6 +43,11 @@ _XACRO_PASSTHROUGH = (
     "max_decel_x",
     "max_vel_theta",
     "max_accel_theta",
+    # Deliberately absent from fleet.yaml: the camera is a per-RUN choice, not a
+    # per-robot property. Passing it through here lets the one launch that needs a
+    # camera set it on the fleet entry it spawns, without every other run paying
+    # for a second rendering sensor. See amr.urdf.xacro for the measurement.
+    "camera_enabled",
 )
 
 

@@ -1,0 +1,4 @@
+halt,clearance_m,speed_mps,d_safe_m,held_s,latency_ms,recoveries_during,allowance_entry_s,allowance_exit_s
+1,0.8415,0.6000,0.9750,0.600,9.00,0,1000000.0,1000000.0
+2,0.0103,0.2542,0.4212,0.394,12.00,0,1000000.0,1000000.0
+3,0.9688,0.6000,0.9750,0.305,7.00,0,1000000.0,1000000.0

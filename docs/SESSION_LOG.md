@@ -278,7 +278,14 @@ deviation from stock is the acceleration bound (`ax_max` 0.4 against stock 3.0),
 comes from `fleet.yaml` because PLAN.md asks the planner's model to match the plant.
 
 **Carries forward:**
-- **Decision needed:** MPPI vs RegulatedPurePursuit, per the paragraph above.
+- **DECIDED (start of Phase 2): RegulatedPurePursuit ships; MPPI is deferred to Phase 5.**
+  Recorded in `docs/PLAN.md` §1 as a V2.2 deviation rather than left as a silent departure
+  from the plan. The reasoning is that the leading hypothesis — `ax_max = 0.4` against a
+  stock 3.0, flattening the sampled rollout set until the optimum collapses toward zero — is
+  a question about what acceleration the plant can actually deliver, and Phase 5 is where
+  payload-adaptive accel/jerk limits get built and `ax_max` gets derived rather than assumed.
+  Re-testing MPPI now would mean tuning it against a number Phase 5 is going to change.
+  `FollowPath_mppi_deferred` is left byte-identical — not renamed, not retested.
 - `lidar_height` is 0.35 m and is now constrained, not free: it must clear
   `wheel_radius + base_height`. PitchGate's Phase 2 sizing comes from the re-run smoke
   test 2, not the Phase 0 numbers.
@@ -290,5 +297,188 @@ comes from `fleet.yaml` because PLAN.md asks the planner's model to match the pl
 - Nav2's `map_saver_cli` needs a TRANSIENT_LOCAL publisher, and gives an identical
   timeout for a missing publisher, a QoS mismatch and a slow map. Phase 3 saves two
   maps and a merged one; it should not learn this a third time.
+
+---
+
+## Phase 2 — SensorBSP + SafetyGate — 2026-08-13
+
+**Built:**
+- `amr_bsp`: `validators.py` (ImuValidator / LidarValidator / CameraValidator as pure
+  functions, no ROS imports), `pitch_gate.py` (per-beam truncation geometry),
+  `sensor_bsp.py` (the relay, counters, diagnostics, latency histogram), `bsp_node.py`
+  (composition + the pitch ring buffer), `topics.py` (the one topic contract).
+- `amr_safety`: `safety_gate.cpp` (C++, in the command path), header-only
+  `safety_model.hpp` / `footprint.hpp`, and the Python sizing mirror `safety_model.py`
+  that derives `k` from fleet.yaml and is what `tests/` exercises.
+- Plant: `drive_watchdog.py` models a motor-controller command watchdog; DiffDrive
+  now listens on `cmd_vel_plant` so `cmd_vel` belongs to the gate alone.
+- Five evidence launches in `amr_bringup` (`phase2_pitch_gate`, `phase2_validation`,
+  `phase2_stopping_sweep`, `phase2_safety_run`, `phase2_failclosed`), each
+  self-shutting-down, each writing to `results/`.
+
+**Verified:** `colcon build --symlink-install` 9 packages / 0 errors, `pytest` **110
+passed** (39 pre-existing + 71 new), flake8 + black clean.
+
+**EXIT — PitchGate suppresses the ramp phantom return** (`results/phase2_pitch_gate.*`):
+
+| | |
+|---|---|
+| raw/validated pairs matched by EXACT header stamp | **903**, 0 restamped, max difference **0 ns** |
+| max pitch | 8.001°, nose-UP (so the TAIL beams strike the ground) |
+| predicted ground intersection `h/sin\|θ\|` | 2.514 m |
+| gate radius at that pitch (0.9×) | 2.263 m |
+| beams truncated in that scan | **120** of 360 |
+| closest return removed | **2.769 m** — the phantom, against the 2.79 m sizing figure |
+| closest return kept, before and after | 2.732 m — the real rack, untouched |
+| truncated over the whole run | 24 833 beams, 7.65 % of all beams seen |
+| cut pointing uphill / inside its own gate / inside the braking envelope | **0 / 0 / 0** |
+
+The stamp match count is the rule-4 evidence and not bookkeeping: raw and validated
+scans are paired by exact stamp, so a restamp would show up as zero matched pairs
+rather than as plausible numbers computed against mismatched data.
+
+**EXIT — injected implausible IMU angular velocity** (`results/phase2_imu_injection.md`).
+50 rad/s on `w_z` against a 4.0 rad/s bound, injected by a separate process so the BSP
+ships with no fault-simulation code in it. 500 injected → **500 rejected, 0 reached
+`validated/imu`** (peak `|w|` there: 0.001 rad/s), while **3194** healthy samples were
+accepted around the window. Both halves matter — a validator that rejected everything
+would produce an equally impressive rejection count.
+
+An unplanned interaction, and a good one: with the IMU stream rejected wholesale,
+PitchGate lost its attitude and republished scans **untruncated** with a throttled
+WARN — the degraded-but-safe path its docstring specifies, exercised for real.
+
+**EXIT — SafetyGate halts on a pedestrian encounter** (`results/phase2_safety_suppressed.*`).
+Goal SUCCEEDED. 3 halts, and **0 commands left the gate while latched** — counted
+inside the gate, comparing the twist about to be published against the latch at that
+instant, because an external probe sees the latch only through 10 Hz diagnostics and
+misreads a legitimate post-release command as a leak.
+
+| sensor stamp → zero command published | mean **8.46 ms** / p95 **11.00 ms** / max **12.00 ms** |
+|---|---|
+| in-node compute (steady clock) | 151 / 226 / 711 µs |
+
+Low-latency safety override — not hard real-time. The end-to-end figure is quantised
+by Gazebo's `/clock` step under `use_sim_time`; the compute figure is not.
+
+**EXIT — stopping distance across four speeds** (`results/phase2_stopping_distance.*`).
+Commanded straight at the gate's input, approaching a rack face, so the gate is the
+only thing that can stop the robot:
+
+| cmd m/s | v at halt | d_safe | clearance at halt | braking | settled |
+|---|---|---|---|---|---|
+| 0.15 | 0.130 | 0.342 | 0.334 | 0.010 | 0.331 |
+| 0.30 | 0.277 | 0.469 | 0.456 | 0.047 | 0.401 |
+| 0.45 | 0.426 | 0.680 | 0.653 | 0.242 | 0.402 |
+| 0.60 | 0.577 | 0.975 | 0.928 | 0.521 | 0.384 |
+
+`k_model` = **1.8750** s²/m against `k_measured` = **1.0208** s²/m — a factor of 1.84.
+Both are quoted because they measure different things: Gazebo's DiffDrive applies
+`max_decel_x` as a KINEMATIC limit, so the simulated robot brakes as if unloaded,
+while `k_model` sizes the envelope for a 90 kg vehicle that cannot ignore its 60 kg of
+payload. The "settled" column is the `d_min` standoff the robot creeps to with the
+command still applied, which is the specified end state of a speed-dependent gate, not
+a leak in it.
+
+**EXIT — fail-closed, SIGKILL mid-motion** (`results/phase2_failclosed_*.md`). SIGKILL
+rather than SIGTERM, so no shutdown handler runs. Upstream keeps commanding throughout:
+
+| | distance after the kill | outcome |
+|---|---|---|
+| plant-side watchdog **present** | **0.196 m** | at rest in 0.75 s |
+| watchdog **absent** (control) | **3.500 m** | **still rolling at 0.350 m/s** when the 10 s window closed |
+
+That is the whole argument for rule 1 as a measurement rather than an assertion.
+gz-sim 8.11.0's DiffDrive has no command timeout, so being the only publisher of
+`cmd_vel` stops new commands but not the latched one; the watchdog models the motor
+controller that does. The control needed one correction to be meaningful — with the
+watchdog simply removed, nothing bridges `cmd_vel` to `cmd_vel_plant` and the robot
+never moved at all (peak 0.000 m/s), which measures a severed command path and
+nothing else. The gate now addresses the plant directly in that case.
+
+**EXIT — no Nav2 recovery during a halt, and an honest reading of the A/B.**
+Suppressed run: 11 recovery behaviours over the run, **0 during any halt**, with
+`progress_checker.movement_time_allowance` read back from `controller_server` as
+1 000 000 s at every halt entry and release. Control run (`suppress_recovery:=false`):
+allowance read back as 10 s throughout, 3 recoveries over the run, and **also 0 during
+a halt**.
+
+**So the A/B does not prove the mechanism was needed, and it would be an overclaim to
+say it does.** The longest halt in either run was 0.80 s against a 10 s allowance, so
+the progress checker was never going to fire during one. What the runs DO establish is
+that the mechanism operates end to end — the parameter is written on entry, read back
+changed, and restored after the robot has moved. Exercising the necessity needs a halt
+longer than `movement_time_allowance`, which this world's walking pedestrians cannot
+produce because they clear the sector in under a second. Carried forward.
+
+**Surprises — two, and both were wrong conclusions rather than wrong code:**
+
+1. **The "camera stalls the drive" finding from the previous session is RETRACTED.**
+   It was recorded as: camera at 160×120/10 Hz → commanded 0.35 m/s, achieved
+   0.00017 m/s; camera absent → 0.35 m/s. Re-measured this session on a verified-clean
+   process table, one variable, everything else identical:
+
+   | | peak measured speed | distance in the window |
+   |---|---|---|
+   | camera **enabled**, driving | **0.3500 m/s** | 13.53 m |
+   | camera **disabled**, driving | **0.3500 m/s** | 13.86 m |
+
+   Identical. The real cause was **four `drive_watchdog` processes leaked from earlier
+   launches**, still subscribed to `/amr1/cmd_vel` and republishing onto
+   `/amr1/cmd_vel_plant`. The contention starved the graph until the gate's own
+   command-timeout fail-safe fired and interleaved zeros into the command stream — 663
+   zeros in 884 messages, measured — so DiffDrive's acceleration limit never
+   integrated. The camera merely happened to be the variable under test when the leak
+   was present. The same signature reappeared this session with **no camera in the
+   world at all**, which is what exposed it: the first stopping sweep reported NO HALT
+   at all four speeds because the robot never moved.
+
+   The camera stays defaulted **off**, but for a different and smaller reason: nothing
+   downstream consumes it, so it is load a run does not need. That is a cost decision,
+   reversible by one xacro argument, not a defect workaround. `results/phase2_camera.md`
+   records 369 frames validated with the robot stationary; `phase2_camera_motion_*.md`
+   record the A/B above.
+
+2. **A process-hygiene failure is a measurement failure.** Every launch in this repo
+   can leave nodes behind, and a leaked node republishing onto a live topic produces
+   results that look like code defects and get written down as findings. The cleanup
+   before each run is now exhaustive rather than targeted, and the PitchGate probe
+   already reports `raw scans whose stamp did NOT advance` for exactly this reason —
+   that counter was added after a stray `gz sim` contaminated a run last session, and
+   it is the reason this session's PitchGate numbers can be trusted.
+
+**Three defects found by running Phase 2 rather than by reading it:**
+
+3. **`bt_log_available` was reset to `False` after the subscriber set it**, a few lines
+   further down `__init__`. The safety report printed "behaviour-tree log unavailable
+   on this Nav2 build" while subscribed to it — the required recovery evidence silently
+   absent from a run that had collected it.
+4. **The gate's RELEASE log printed the wrong clearance.** It logged the sector
+   minimum, but the latch releases on the value it was actually given, which is
+   infinity when the upstream has stopped commanding translation. The line read
+   "RELEASE: clearance 0.121 m > d_release 0.717 m", which is arithmetic nonsense. It
+   now prints the latched value and names the sector value separately.
+5. **NavFn intermittently aborts the goal** with "Failed to create a plan from
+   potential when a legal potential was found" while the map is still filling in ahead
+   of the robot. The safety run now retries a bounded number of times and reports the
+   dispatch count, so a mapping transient does not discard the encounter — and a stack
+   that genuinely could not navigate would still show up as a retry count.
+
+**Carries forward:**
+- **For the README's known-limitations section, in this wording:** the camera is
+  present and validated but defaulted off because no component consumes it; on real
+  hardware a camera runs its own pipeline and the question does not arise. Do NOT
+  describe it as a simulator resource limit — that claim was measured and disproved.
+- The recovery-suppression A/B needs a halt longer than `movement_time_allowance`
+  (10 s) to demonstrate necessity rather than operation. A static obstacle parked in
+  the path would do it; the walking pedestrians will not.
+- `k_measured` (1.02 s²/m) is a property of the simulator's kinematic decel, not of the
+  safety model. Phase 5 builds payload-adaptive accel/jerk limits and should re-run the
+  stopping sweep against them rather than against `max_decel_x` alone.
+- The gate zeroes the ENTIRE twist while blocked. Allowing in-place rotation under a
+  hold is a Phase 7 refinement, deliberately not assumed here.
+- `min_gate_range` is 1.565 m for amr1 and binds only above ~13° of pitch; on this
+  warehouse's 8° ramp the unclamped gate (2.263 m) already clears the braking envelope.
+  The interlock is held in reserve, not leaned on — pinned by `tests/test_safety_distance.py`.
 
 ---

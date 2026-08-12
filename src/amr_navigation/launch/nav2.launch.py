@@ -26,6 +26,7 @@ from launch.actions import DeclareLaunchArgument, GroupAction, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, PushROSNamespace, SetParameter
 
+from amr_bsp.topics import CMD_NAV
 from amr_description.fleet_config import load_fleet
 from amr_navigation.params import lifecycle_nodes, render_nav2_params, SCAN_TOPIC
 
@@ -38,6 +39,19 @@ SERVERS = (
     ("nav2_bt_navigator", "bt_navigator", "bt_navigator"),
     ("nav2_waypoint_follower", "waypoint_follower", "waypoint_follower"),
 )
+
+#: Servers that publish cmd_vel, and must therefore be routed through SafetyGate.
+#:
+#: BOTH of them. controller_server is the obvious one; behavior_server is the one
+#: that gets missed, because Spin, BackUp, DriveOnHeading and Wait publish their own
+#: velocities directly (nav2_behaviors/timed_behavior.hpp constructs a TwistPublisher
+#: on "cmd_vel"). A gate placed on the controller alone would let every recovery
+#: behaviour drive the robot ungated - during exactly the situations where recovery
+#: fires, which are the situations the gate exists for.
+#:
+#: Upstream nav2_bringup applies this same remap to every server; this repo builds
+#: its own Nav2 launch (see the module docstring) and so has to state it.
+CMD_VEL_PUBLISHERS = frozenset({"controller_server", "behavior_server"})
 
 
 def _setup(context, *args, **kwargs):
@@ -59,6 +73,7 @@ def _setup(context, *args, **kwargs):
             output="screen",
             parameters=[params],
             # NO /tf remapping - see the module docstring.
+            remappings=([("cmd_vel", CMD_NAV)] if name in CMD_VEL_PUBLISHERS else []),
         )
         for package, executable, name in SERVERS
     ]

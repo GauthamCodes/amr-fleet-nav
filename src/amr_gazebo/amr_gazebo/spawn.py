@@ -47,6 +47,7 @@ def sensor_frame_bridges(robot, use_sim_time=True):
     pairs = (
         (f"{prefix}laser", gz_sensor_frame(robot, "lidar")),
         (f"{prefix}imu_link", gz_sensor_frame(robot, "imu")),
+        (f"{prefix}camera_link", gz_sensor_frame(robot, "camera")),
     )
     return [
         Node(
@@ -105,28 +106,40 @@ def bridge_arguments(robot):
         # ROS type is Imu, Gazebo type is IMU. The bridge silently publishes nothing
         # if the ROS-side spelling is wrong, so it reads as a dead sensor.
         f"/{name}/imu@sensor_msgs/msg/Imu[gz.msgs.IMU",
+        # Gazebo's R8G8B8 arrives as the ROS encoding "rgb8", which is what
+        # amr_bsp.validators.CAMERA_ENCODINGS accepts.
+        f"/{name}/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",
         # State.
         f"/{name}/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry",
         f"/{name}/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model",
         f"/{name}/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V",
-        # Command.
-        f"/{name}/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
+        # Command. NOT /cmd_vel: the wheel controller's input is one hop further in,
+        # behind drive_watchdog. /amrN/cmd_vel is SafetyGate's output and the robot's
+        # command topic; see amr_gazebo.xacro's DiffDrive block for why the plant
+        # needs a watchdog of its own.
+        f"/{name}/cmd_vel_plant@geometry_msgs/msg/Twist]gz.msgs.Twist",
         # Simulator ground truth, for smoke tests and later drift metrics only.
         f"/model/{name}/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V",
     ]
 
 
-def robot_actions(robot, world_name, use_sim_time=True):
+def robot_actions(robot, world_name, use_sim_time=True, with_watchdog=True):
     """Return every launch action needed to bring one robot up in simulation.
 
     Args:
         robot: One entry from the typed fleet list.
         world_name: Name of the Gazebo world to spawn into.
         use_sim_time: Whether nodes should follow ``/clock``.
+        with_watchdog: Whether to start the plant-side command watchdog. True for
+            every ordinary run. The Phase 2 fail-closed evidence run sets it False
+            for its control case, which is the only way to show what the watchdog
+            is actually buying: with it, a SIGKILLed SafetyGate stops the robot;
+            without it, Gazebo's DiffDrive keeps rolling on the latched command.
+            An A/B is the difference between measuring that and asserting it.
 
     Returns:
         A list of launch actions: robot_state_publisher, the Gazebo spawn request,
-        and the per-robot topic bridge.
+        the per-robot topic bridge, and (by default) the drive watchdog.
     """
     name = robot["name"]
     prefix = frame_prefix(robot)
@@ -188,10 +201,23 @@ def robot_actions(robot, world_name, use_sim_time=True):
         ],
     )
 
-    _ = prefix  # frames are already baked into the description
-    return [state_publisher, spawn, bridge] + sensor_frame_bridges(
-        robot, use_sim_time=use_sim_time
+    # Part of the plant, so it comes up with the robot rather than with the nav stack.
+    # Since the DiffDrive plugin now listens on cmd_vel_plant, nothing moves at all
+    # without this - which is exactly the property that makes rule 1 demonstrable.
+    watchdog = Node(
+        package="amr_gazebo",
+        executable="drive_watchdog.py",
+        name="drive_watchdog",
+        namespace=name,
+        output="screen",
+        parameters=[{"use_sim_time": use_sim_time, "timeout_s": 0.3}],
     )
+
+    _ = prefix  # frames are already baked into the description
+    plant = [state_publisher, spawn, bridge]
+    if with_watchdog:
+        plant.append(watchdog)
+    return plant + sensor_frame_bridges(robot, use_sim_time=use_sim_time)
 
 
 def clock_bridge(use_sim_time=True):

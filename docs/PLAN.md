@@ -11,6 +11,19 @@ Extend Nav2 rather than duplicate it. Write custom code only where the assignmen
 
 **Stack:** ROS2 Jazzy · Gazebo Harmonic · Nav2 (MPPI controller) · slam_toolbox per robot · twist_mux · Python primary, C++ where measurement justifies it.
 
+⚡ **V2.2 — controller deviation, recorded rather than silently absorbed.** Phase 1 ships
+**RegulatedPurePursuit**, not the MPPI named above. MPPI loads cleanly and then commands
+~0.0034 m/s, with the global plan, the transformed plan, the local costmap, the footprint
+polygon, all 8 critics and every parameter read back verifying good on the same runs.
+Leading hypothesis: `ax_max = 0.4` from `fleet.yaml` against a stock 3.0 — with acceleration
+that limited, every sampled rollout barely moves, so the candidate set flattens and the
+optimum collapses toward zero.
+
+**Deferred to Phase 5**, which is where payload-adaptive acceleration and jerk limits get
+built and `ax_max` gets reasoned about properly against the plant rather than assumed. The
+MPPI block is preserved verbatim in `nav2_params.yaml` as `FollowPath_mppi_deferred`, so
+reverting is a rename of two keys. Full evidence in `docs/SESSION_LOG.md`, Phase 1.
+
 ⚡ **Terminology discipline:** this is a *low-latency, high-priority* safety override. Not "hard real-time" — no RT kernel, no scheduling guarantees, don't claim them.
 
 ---

@@ -51,6 +51,44 @@
   <xacro:arg name="lidar_update_rate" default="10.0"/>
   <xacro:arg name="imu_update_rate" default="100.0"/>
 
+  <!-- ==== Forward camera - PRESENT, DEFAULTED OFF, AND IT DOES NOT COST MOTION ====
+
+       The assignment's evaluation table asks for a camera validator, and a validator
+       with no camera behind it is dead code, so a deliberately tiny 160x120 sensor at
+       10 Hz gives CameraValidator live stamps, resolution and encoding to check.
+
+       A CORRECTED FINDING. An earlier session recorded that enabling this camera
+       stalled the drive - commanded 0.35 m/s, achieved 0.00017 m/s - and defaulted it
+       off for that reason. That attribution was WRONG. The stall was caused by
+       drive_watchdog processes leaked from earlier launches, still subscribed to
+       /amrN/cmd_vel and republishing onto /amrN/cmd_vel_plant; the contention starved
+       the graph until the gate's own command-timeout fired and interleaved zeros into
+       the command stream, so DiffDrive's acceleration limit never integrated. The
+       camera happened to be the variable under test at the time.
+
+       Re-measured on a verified-clean process table, one variable, everything else
+       identical (results/phase2_camera_motion_{on,off}.md):
+
+           camera ENABLED  : commanded 0.35 m/s, peak measured 0.3500 m/s, 13.53 m
+           camera DISABLED : commanded 0.35 m/s, peak measured 0.3500 m/s, 13.86 m
+
+       Identical peak speed. The remaining 2 % of distance is where the fixed sim-time
+       window happened to close, not a motion deficit.
+
+       So why still default OFF? Because the camera has no downstream consumer in this
+       project - nothing plans, localises or avoids with it - and every extra rendering
+       sensor is load this 6 GB GPU does not need to carry on a run that does not use
+       it. That is a cost decision, not a defect workaround, and it is reversible by
+       flipping this one argument.
+
+       camera_enabled is a per-RUN switch, not a per-robot property, so it is absent
+       from fleet.yaml. bsp.launch.py's camera_enabled argument must be kept in step
+       with this one, or the BSP subscribes to a topic nobody publishes. -->
+  <xacro:arg name="camera_enabled" default="false"/>
+  <xacro:arg name="camera_width" default="160"/>
+  <xacro:arg name="camera_height" default="120"/>
+  <xacro:arg name="camera_update_rate" default="10.0"/>
+
   <!-- ==== Kinodynamic limits (also fed to nav2_velocity_smoother in later phases,
            so simulation and planning read the SAME numbers) ==== -->
   <xacro:arg name="max_vel_x" default="0.60"/>
@@ -301,6 +339,22 @@
     <child link="${prefix}imu_link"/>
     <origin xyz="${body_x} 0 ${base_height / 2.0}" rpy="0 0 0"/>
   </joint>
+
+  <!-- Forward camera, on the front face of the chassis looking down the +x axis. -->
+  <xacro:if value="$(arg camera_enabled)">
+    <link name="${prefix}camera_link">
+      <inertial>
+        <mass value="0.02"/>
+        <inertia ixx="1e-6" ixy="0.0" ixz="0.0" iyy="1e-6" iyz="0.0" izz="1e-6"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}camera_joint" type="fixed">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}camera_link"/>
+      <origin xyz="${body_x + base_length / 2.0} 0 ${base_height / 2.0}" rpy="0 0 0"/>
+    </joint>
+  </xacro:if>
 
   <!-- Gazebo sensors, materials and the differential drive system. -->
   <!-- Relative include: resolves both in-source and from the installed share/
