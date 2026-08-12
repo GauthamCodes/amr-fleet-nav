@@ -91,8 +91,27 @@
        support triangle: it looked level at rest and then rocked through 24.6 degrees
        on an 8 degree ramp. Adding a rear caster cured the rocking by making the base
        a rigid four-point body - which then could not pitch at all, and jammed solid
-       against the ramp toe while its wheels kept turning. -->
-  <xacro:property name="wheel_x" value="${-0.20 * base_length}"/>
+       against the ramp toe while its wheels kept turning.
+
+       THE FRAME ORIGIN IS THE DRIVE AXLE, NOT THE CHASSIS CENTRE.
+       A differential drive rotates about the midpoint of its wheel axle, and Gazebo's
+       DiffDrive derives odometry from wheel encoders alone, so the pose it integrates
+       IS the axle midpoint - it then labels that pose base_footprint. If base_footprint
+       were anywhere else, odometry and TF would describe two different points.
+
+       Phase 1 measured what that costs: commanding a pure in-place rotation, wheel
+       odometry reported 0.0000 m of displacement while Gazebo ground truth showed the
+       robot frame sweeping 0.2428 m - a 0.24 m disagreement, against a 0.02 m
+       tolerance. Sensors would have rotated about the wrong centre and smeared the map
+       on every turn. See results/odom_rotation_check.md.
+
+       So the wheels define the origin and the BODY is offset forward instead. The
+       robot's physical shape and its stable weight distribution are unchanged; only
+       which point is called base_link moves. One consequence is deliberate and must be
+       carried into Nav2: the footprint is now ASYMMETRIC about the origin, spanning
+       x in [-0.21, +0.49] for amr1 rather than [-0.35, +0.35]. That asymmetry is the
+       truth about how this robot sweeps when it turns. -->
+  <xacro:property name="body_x" value="${0.20 * base_length}"/>
 
   <xacro:property name="wheel_mass" value="${0.04 * total_mass}"/>
   <xacro:property name="body_mass" value="${total_mass - 2.0 * wheel_mass}"/>
@@ -109,7 +128,7 @@
 
   <link name="${prefix}base_link">
     <visual>
-      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <origin xyz="${body_x} 0 ${base_height / 2.0}" rpy="0 0 0"/>
       <geometry>
         <box size="${base_length} ${base_width} ${base_height}"/>
       </geometry>
@@ -118,13 +137,13 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <origin xyz="${body_x} 0 ${base_height / 2.0}" rpy="0 0 0"/>
       <geometry>
         <box size="${base_length} ${base_width} ${base_height}"/>
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+      <origin xyz="${body_x} 0 ${base_height / 2.0}" rpy="0 0 0"/>
       <mass value="${body_mass}"/>
       <!-- Solid-box inertia about the box centre. -->
       <inertia
@@ -171,7 +190,7 @@
     <joint name="${prefix}${side}_wheel_joint" type="continuous">
       <parent link="${prefix}base_link"/>
       <child link="${prefix}${side}_wheel_link"/>
-      <origin xyz="${wheel_x} ${reflect * wheel_separation / 2.0} 0" rpy="0 0 0"/>
+      <origin xyz="0 ${reflect * wheel_separation / 2.0} 0" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
     </joint>
   </xacro:macro>
@@ -180,7 +199,7 @@
   <xacro:drive_wheel side="right" reflect="-1"/>
 
   <!-- Single passive front caster, kept low-friction so it does not fight the
-       differential drive. See the wheel_x note above for why there is exactly one. -->
+       differential drive. See the body_x note above for why there is exactly one. -->
   <xacro:macro name="caster" params="side reflect">
     <link name="${prefix}${side}_caster_link">
       <visual>
@@ -211,7 +230,7 @@
       <parent link="${prefix}base_link"/>
       <child link="${prefix}${side}_caster_link"/>
       <origin
-        xyz="${reflect * (base_length / 2.0 - caster_radius)} 0
+        xyz="${body_x + reflect * (base_length / 2.0 - caster_radius)} 0
              ${caster_radius - wheel_radius}"
         rpy="0 0 0"/>
     </joint>
@@ -238,7 +257,7 @@
   <joint name="${prefix}laser_joint" type="fixed">
     <parent link="${prefix}base_link"/>
     <child link="${prefix}laser"/>
-    <origin xyz="${base_length / 2.0 - 0.06} 0 ${lidar_z_in_base}" rpy="0 0 0"/>
+    <origin xyz="${body_x + base_length / 2.0 - 0.06} 0 ${lidar_z_in_base}" rpy="0 0 0"/>
   </joint>
 
   <link name="${prefix}imu_link">
@@ -251,7 +270,7 @@
   <joint name="${prefix}imu_joint" type="fixed">
     <parent link="${prefix}base_link"/>
     <child link="${prefix}imu_link"/>
-    <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0"/>
+    <origin xyz="${body_x} 0 ${base_height / 2.0}" rpy="0 0 0"/>
   </joint>
 
   <!-- Gazebo sensors, materials and the differential drive system. -->

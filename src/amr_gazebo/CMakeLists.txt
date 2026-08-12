@@ -24,6 +24,8 @@ install(
     scripts/smoke1_check.py
     scripts/smoke2_drive.py
     scripts/smoke2_measure.py
+    scripts/bag_probe.py
+    scripts/odom_rotation_check.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

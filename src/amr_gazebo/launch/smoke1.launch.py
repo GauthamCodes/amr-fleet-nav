@@ -18,7 +18,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from amr_description.fleet_config import load_fleet
+from amr_description.fleet_config import laser_x_offset, load_fleet
 from amr_gazebo.spawn import (
     clock_bridge,
     ground_truth_bridge,
@@ -105,8 +105,7 @@ def _setup(context, *args, **kwargs):
                 "robot_y": float(robot["spawn"]["y"]),
                 "robot_yaw": float(robot["spawn"]["yaw"]),
                 "lidar_height": float(robot["lidar_height"]),
-                # Mirrors the laser joint origin in amr.urdf.xacro.
-                "lidar_x_offset": float(robot["base_length"]) / 2.0 - 0.06,
+                "lidar_x_offset": laser_x_offset(robot),
                 "actor_x": actor_x,
                 "actor_y_min": actor_y_min,
                 "actor_y_max": actor_y_max,

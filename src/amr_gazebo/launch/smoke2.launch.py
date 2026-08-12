@@ -25,7 +25,7 @@ from launch.actions import (
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from amr_description.fleet_config import load_fleet
+from amr_description.fleet_config import laser_x_offset, load_fleet
 from amr_gazebo.spawn import clock_bridge, gz_server, robot_actions
 from amr_gazebo.world_builder import render_world, world_name_of
 
@@ -56,7 +56,7 @@ def _setup(context, *args, **kwargs):
     # Same robot as the fleet declares, placed on the ramp centre line.
     robot = dict(load_fleet()[0])
     robot["spawn"] = {"x": -2.0, "y": 0.0, "z": 0.15, "yaw": 0.0}
-    lidar_x_offset = float(robot["base_length"]) / 2.0 - 0.06
+    lidar_x_offset = laser_x_offset(robot)
 
     # Ground truth arrives via the robot's own PosePublisher, bridged in robot_actions.
     actions = [gz_server(world_sdf, headless=headless), clock_bridge()]

@@ -114,6 +114,47 @@ def xacro_mappings(robot):
     return mappings
 
 
+def body_x_offset(robot):
+    """Return how far forward of the drive axle the chassis box sits, in metres.
+
+    Mirrors the ``body_x`` property in ``amr.urdf.xacro``. The frame origin is the drive
+    axle because that is what a differential drive rotates about and what wheel odometry
+    integrates; the body is offset forward of it.
+    """
+    return 0.20 * float(robot["base_length"])
+
+
+def laser_x_offset(robot):
+    """Return the laser's x position in the base_footprint frame, in metres.
+
+    Every measurement that converts a scan range into a world position needs this, and
+    Phase 1 found the cost of letting each caller recompute it: when the frame origin
+    moved onto the drive axle, a stale copy of this expression would have silently
+    biased every range comparison by 0.14 m. Derived once, here.
+    """
+    return body_x_offset(robot) + float(robot["base_length"]) / 2.0 - 0.06
+
+
+def footprint_polygon(robot):
+    """Return the robot's footprint in the base_footprint frame as [[x, y], ...].
+
+    ASYMMETRIC BY CONSTRUCTION. The origin is the drive axle and the body sits forward
+    of it, so the polygon extends further ahead than behind. That asymmetry is the whole
+    point: a symmetric disc or box would understate how far the nose sweeps when the
+    robot turns in place, and Nav2 would drive it into a rack while believing it had
+    clearance.
+    """
+    front = body_x_offset(robot) + float(robot["base_length"]) / 2.0
+    back = body_x_offset(robot) - float(robot["base_length"]) / 2.0
+    half_w = float(robot["base_width"]) / 2.0
+    return [
+        [round(front, 4), round(half_w, 4)],
+        [round(front, 4), round(-half_w, 4)],
+        [round(back, 4), round(-half_w, 4)],
+        [round(back, 4), round(half_w, 4)],
+    ]
+
+
 def spawn_pose(robot):
     """Return ``(x, y, z, yaw)`` for a robot's pose, defaulting to the origin."""
     pose = robot.get("spawn", {}) or {}
