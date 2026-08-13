@@ -306,6 +306,14 @@ class FleetMission(Node):
             "costed_cells": int(np.count_nonzero(known > 0)),
             "ramp_known": int(np.count_nonzero(ramp >= 0)) if ramp.size else 0,
             "ramp_max": int(ramp.max()) if ramp.size else -1,
+            # The discriminator for a GRADED ramp mask, and the mirror image of
+            # known_min above. A mask that costs the ramp raises every cell in
+            # that footprint together, so the MINIMUM over the ramp's known cells
+            # steps off zero - while known_min over the whole warehouse stays at
+            # zero, because the mask is zero everywhere else. One number says the
+            # cost landed, the other says it landed only where it was meant to.
+            "ramp_min": int(ramp[ramp >= 0].min()) if np.any(ramp >= 0) else -1,
+            "ramp_unknown": int(np.count_nonzero(ramp < 0)) if ramp.size else 0,
         }
 
     def _on_plan(self, name, msg):
@@ -520,8 +528,15 @@ class FleetMission(Node):
             for name, costmap in self.costmaps.items():
                 add(
                     f"      {name}: ramp footprint {costmap['ramp_known']} known "
-                    f"cells, max cost {costmap['ramp_max']}"
+                    f"cells, {costmap['ramp_unknown']} unknown, cost "
+                    f"{costmap['ramp_min']} .. {costmap['ramp_max']}"
                 )
+            add("")
+            add("    With a GRADED ramp mask the discriminator is the ramp's MINIMUM")
+            add("    cost, not its maximum: the mask raises every cell in the")
+            add("    footprint together, so the minimum steps off zero while the")
+            add("    warehouse-wide 'min cost' above stays at zero. One says the cost")
+            add("    landed; the other says it landed only where it was meant to.")
         else:
             add("    no costmap received")
         add(thin)

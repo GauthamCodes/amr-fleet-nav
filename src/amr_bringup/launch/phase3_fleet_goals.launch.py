@@ -59,6 +59,10 @@ MISSION_START_S = 32.0
 #: length of the aisle in its own lane.
 DEFAULT_GOALS = [-0.5, -1.5, 0.0, -0.5, 1.5, 0.0]
 
+#: The tag whose artifacts ARE the Phase 3 deliverables. Any other tag suffixes
+#: every file this launch writes, so a variant run cannot overwrite them.
+DEFAULT_TAG = "concurrent_goals"
+
 
 def _setup(context, *args, **kwargs):
     results_dir = LaunchConfiguration("results_dir").perform(context)
@@ -77,7 +81,20 @@ def _setup(context, *args, **kwargs):
             "with_actors": LaunchConfiguration("with_actors"),
             # The selective-update report is written by FleetMapNode itself, so the
             # path is threaded down to it rather than collected by the mission node.
-            "decision_log": os.path.join(results_dir, "phase3_selective_updates"),
+            #
+            # TAG-AWARE, and it was not, once. The mission report follows `tag` but
+            # this path did not, so re-running this launch under a different tag -
+            # the Phase 4 ramp arm did exactly that - silently overwrote the
+            # committed Phase 3 selective-update evidence with a different run's
+            # numbers while leaving its own report looking untouched. The default
+            # tag keeps the original filename, so that artifact is unchanged.
+            "decision_log": os.path.join(
+                results_dir,
+                "phase3_selective_updates" + ("" if tag == DEFAULT_TAG else f"_{tag}"),
+            ),
+            # 0.0 reproduces the Phase 3 null mask exactly. The Phase 4 arm passes
+            # a graded value and is compared against that run's artifact.
+            "ramp_mask_value": LaunchConfiguration("ramp_mask_value"),
         }.items(),
     )
 
@@ -115,7 +132,14 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("headless", default_value="true"),
             DeclareLaunchArgument("with_actors", default_value="false"),
-            DeclareLaunchArgument("tag", default_value="concurrent_goals"),
+            DeclareLaunchArgument("tag", default_value=DEFAULT_TAG),
+            DeclareLaunchArgument(
+                "ramp_mask_value",
+                default_value="0.0",
+                description="0.0 is Phase 3's null mask. The Phase 4 arm runs "
+                "this same launch with a graded value and a different tag, so the "
+                "two artifacts are the A/B of the ramp cost mechanism.",
+            ),
             DeclareLaunchArgument(
                 "results_dir", default_value=os.path.join(os.getcwd(), "results")
             ),

@@ -1091,3 +1091,103 @@ no conflict met the escalation test, with the reason spelled out.
   close" drifting away from the gate's.
 
 ---
+
+## Phase 4 — Ramp cost: two findings, both negative, both worth the space — 2026-08-13
+
+Attempted last, with the yield protocol and the runbook already committed. Neither
+half of the ramp A/B survived contact, and the reasons are specific.
+
+### 1. The two-route A/B cannot be staged in this world
+
+The A/B PLAN.md §5 specifies is "a flat alternative exists → the ramp is avoided;
+the flat route is blocked → the ramp is taken". That needs one goal reachable
+**both** ways. This world has no such goal, and the geometry says so directly:
+
+| | |
+|---|---|
+| lower level | x ∈ [−14, 2.4] — flat, and the ramp is not on any route within it |
+| ramp | x ∈ [2.4423, 6.0], y ∈ [−1.25, 1.25], 8° |
+| upper plateau | **a solid box, x ∈ [6, 18], spanning the FULL y ∈ [−9, 9]** |
+
+So the ramp is the only way onto the upper level, and nothing on the lower level
+needs it. Session B's carry-over said "a two-route topology also already exists in
+the world — the aisle is clear for |y| < 2.75 and the ramp occupies |y| ≤ 1.25".
+That is true of the aisle's *lanes*, but both lanes are flat for all x < 2.4423:
+they are two ways down the same corridor, not a flat route and a ramp route to one
+destination. **The claim was wrong, and it is retracted here.**
+
+The only theoretical alternative — driving around the plateau at 9.0 < |y| ≤ 10 —
+is a sliver of unmapped ground at the very edge of the 34 × 20 m costmap, outside
+the `WAREHOUSE_EXTENT` the test suite asserts. Building an A/B on it would be
+manufacturing a route the warehouse does not have.
+
+**What it would take:** the second ramp whose footprint Phase 0 reserved and
+commented in `world.yaml` (crest at x = 18, descending toward +x). With it, the
+upper plateau becomes a shortcut between two lower-level points and the A/B is
+exactly the specified experiment. Without it, no amount of cost tuning produces a
+choice, because there is nothing to choose between.
+
+### 2. A graded KeepoutFilter mask produced no measurable cost
+
+Since the routing A/B was out, the nearest honest deliverable was the mechanism:
+put real, bounded cost on the ramp footprint and measure it. The plumbing was
+finished — `ramp_mask_value` on `costmap_filters.launch.py`, threaded through
+`fleet_nav` and `phase3_fleet_goals`, defaulting to **0.0** so every earlier run
+still describes the costmap it was measured in — and one arm was run at value 60
+(`results/phase3_ramp_cost_graded.md`).
+
+**Everything upstream of the costmap is confirmed good:**
+
+| | |
+|---|---|
+| mask PGM | 680 × 400 at 0.05 m, origin (−15, −10) — **3 600 pixels at 102**, rest 255 |
+| 102 | = 255·(1 − 60/100); lighter is cheaper, white is free |
+| YAML | `mode: scale`, thresholds 0.0/1.0, so 60 reaches the scale branch uncollapsed |
+| both costmaps | `Using costmap filter "ramp_filter"` → `Received filter info` → **`Received filter mask`** |
+| ramp footprint measured | 3 550 known cells, 0 unknown |
+| **cost over the ramp footprint** | **0 .. 100 — identical to the null-mask run** |
+
+The measured region and the masked region are the same 72 × 50 cells of the same
+grid, and the ramp footprint is symmetric about y = 0, so a row-flip error in the
+mask generator would be invisible *and* harmless. The cost simply does not appear.
+
+**Not diagnosed, and stated as such.** The leading hypothesis is that Nav2 Jazzy's
+`KeepoutFilter` maps mask values to cost **binarily** — 100 → LETHAL, everything
+below → nothing — rather than proportionally. If that is right, a graded keepout
+mask cannot express "expensive but passable" at all, and the only mask value that
+changes a plan is the one that makes the ramp impassable, which
+`ramp_mask.MAX_MASK_VALUE` deliberately forbids. Graded slope cost would then need
+the custom `RampCostLayer` that the compressed plan cut.
+
+**This corrects the Phase 6+5 carry-over**, which recorded the blocking question
+as "settled from the source rather than by measurement": that `KeepoutFilter`'s
+combine rule writes onto `NO_INFORMATION` cells. The combine rule may well do
+that; it was the wrong question. What decides a graded mask is the value mapping
+BEFORE the combine, and reading one and not the other is how a question comes to
+look settled. The measurement above is what the source read should have been.
+
+**Carries forward:**
+
+- `ramp_mask_value` defaults to **0.0**, so the repo's shipped behaviour is
+  unchanged and every pre-Phase-4 artifact remains valid. The argument, the mask
+  generator and the measurement are all in place for whoever picks this up.
+- **A defect this attempt exposed, and it was not in the ramp code.**
+  `phase3_fleet_goals` threaded `decision_log` to a FIXED path while its mission
+  report followed `tag`, so running the launch under a second tag silently
+  overwrote the committed Phase 3 selective-update evidence — the 41/23/18 numbers
+  quoted in this log and in the runbook — with a shorter run's, while that run's
+  own report looked perfectly normal. Caught by `git status`, restored from git,
+  and the path is now tag-aware with the default tag keeping the original
+  filename. A variant run overwriting a deliverable is exactly the class of
+  silent-corruption failure the Phase 3 plan-frame bug was.
+- `fleet_mission`'s costmap section now reports the ramp footprint's **minimum**
+  cost and its unknown-cell count, not just its maximum. The minimum is the
+  discriminator for a graded mask, exactly as the warehouse-wide minimum is the
+  discriminator for a mask that costs everything.
+- **For the README:** §2.2 ships as the KeepoutFilter loaded, wired and measured
+  as contributing nothing, plus this negative result. That is an honest state to
+  submit — the requirement's mechanism is present and instrumented, the tuned
+  configuration does not currently produce graded cost, and the reason it was not
+  chased further is budget, recorded rather than hidden.
+
+---

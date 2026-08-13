@@ -195,7 +195,10 @@ def _setup(context, *args, **kwargs):
                     {
                         "enabled": (
                             "false" if with_nav2.lower() == "false" else with_filters
-                        )
+                        ),
+                        "ramp_mask_value": LaunchConfiguration(
+                            "ramp_mask_value"
+                        ).perform(context),
                     },
                 ),
             ],
@@ -213,6 +216,13 @@ def generate_launch_description():
             DeclareLaunchArgument("scan_topic", default_value=SCAN_TOPIC),
             DeclareLaunchArgument("with_nav2", default_value="true"),
             DeclareLaunchArgument("suppress_recovery", default_value="true"),
+            DeclareLaunchArgument(
+                "ramp_mask_value",
+                default_value="0.0",
+                description="Mask value on the ramp footprint, 0-90. 0 is the "
+                "null mask Phase 3 shipped; a positive value makes the ramp "
+                "traversable but expensive.",
+            ),
             DeclareLaunchArgument(
                 "with_filters",
                 default_value="true",

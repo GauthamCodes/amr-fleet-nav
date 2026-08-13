@@ -1,0 +1,3 @@
+robot,status,dispatched_s,finished_s,duration_s,driven_m,final_error_m,replans,goal_x,goal_y
+amr1,SUCCEEDED,24.631,43.193,18.561999999999998,10.505,0.017798137835783743,0,-0.500,-1.500
+amr2,SUCCEEDED,24.631,35.979,11.347999999999999,10.731,0.23113083314651103,0,-0.500,1.500

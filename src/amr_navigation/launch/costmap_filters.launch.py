@@ -33,7 +33,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from amr_fleet_control.fleet_grid import default_fleet_grid, FLEET_FRAME
+from amr_fleet_control.fleet_grid import default_fleet_grid, FLEET_FRAME, RAMP_REGION
 from amr_navigation.ramp_mask import write_mask
 
 #: Absolute, for the reason in the module docstring.
@@ -54,9 +54,20 @@ def _setup(context, *args, **kwargs):
 
     grid = default_fleet_grid()
 
-    # Phase 3 ships no regions: a uniformly free mask, so the filter's contribution
-    # is provably zero. Phase 4 passes the ramp footprint and a graded value here.
-    yaml_path = write_mask(grid, regions=())
+    # Phase 3 shipped no regions: a uniformly free mask, so the filter's
+    # contribution was provably zero. A nonzero ``ramp_mask_value`` puts a graded
+    # cost on the ramp footprint and nowhere else - the "tuned configuration" the
+    # assignment permits for slope traversability, in place of a custom layer.
+    #
+    # Default 0 keeps the null mask, so every run recorded before Phase 4 still
+    # describes the costmap it was measured in. The cap lives in ramp_mask, which
+    # RAISES above MAX_MASK_VALUE rather than clipping: mask 100 becomes cost 254
+    # (LETHAL) and 253 is already INSCRIBED_INFLATED_OBSTACLE, which a footprint
+    # collision checker treats as a collision. An expensive ramp is not an
+    # impassable one.
+    ramp_value = float(LaunchConfiguration("ramp_mask_value").perform(context))
+    regions = () if ramp_value <= 0.0 else (RAMP_REGION + (ramp_value,),)
+    yaml_path = write_mask(grid, regions=regions)
 
     mask_server = Node(
         package="nav2_map_server",
@@ -121,6 +132,13 @@ def generate_launch_description():
                 default_value="true",
                 description="false brings up no filter servers at all. The mapping "
                 "survey runs without Nav2, so it has no costmap to filter.",
+            ),
+            DeclareLaunchArgument(
+                "ramp_mask_value",
+                default_value="0.0",
+                description="Mask value on the ramp footprint, 0-90. 0 is the "
+                "null mask Phase 3 shipped and measured as contributing nothing; "
+                "a positive value makes the ramp traversable but expensive.",
             ),
             OpaqueFunction(function=_setup),
         ]
