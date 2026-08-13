@@ -1,0 +1,70 @@
+# ============================================================================
+# twist_mux.yaml - the command-source priority table.
+#
+# The mux is the LAST link before SafetyGate and is never the gate itself
+# (docs/ENGINEERING_NOTES.md rule 1). A mux selects the highest-priority input that is still
+# publishing, so when its own process dies the robot keeps whatever the plant
+# last latched: it fails OPEN. The gate is a serial link that emits zero when
+# anything goes quiet: it fails CLOSED. Those are opposite failure modes and
+# the safety element has to be the second one.
+#
+#   cmd_vel_shaped (nav, 100) ---\
+#                                 mux --> cmd_vel_mux --> SafetyGate
+#   cmd_vel_yield  (yield, 150) --/
+#
+# WHY YIELD IS A MUX CHANNEL AND NOT A FLAG
+#
+#   TrafficControlNode commands a yield by publishing zero velocity on the
+#   yield channel at the controller rate, and RELEASES it by simply stopping.
+#   The per-topic timeout below is what makes that work: an input that has not
+#   published within its timeout stops being a candidate, so navigation resumes
+#   on its own. There is no release message to lose, and an arbiter that
+#   crashes mid-yield releases the robot rather than pinning it forever.
+#
+# WHICH NODE READS THIS
+#
+#   amr_safety/scripts/priority_mux.py, NOT the stock twist_mux binary. The
+#   twist_mux package is installed and its executable does not load in this ROS
+#   snapshot - ros-jazzy-twist-mux 4.5.0 is built against a newer
+#   diagnostic_updater than ros-jazzy-diagnostic-updater 4.2.6 provides, and
+#   the constructor symbol it wants does not exist. The full diagnosis is in
+#   that file's docstring and in docs/SESSION_LOG.md. This schema is twist_mux's
+#   own, so restoring the stock node is a two-line launch change.
+#
+# UNITS
+#   timeout    seconds
+#   priority   dimensionless, higher wins
+# ============================================================================
+
+# '/**' rather than 'twist_mux:'. Every robot runs its own mux at
+# /amrN/twist_mux, and a bare node-name key does not match a namespaced node -
+# the parameters are silently ignored and the node comes up on its defaults.
+# This repo has already paid for that lesson once, in amr_navigation.params.
+/**:
+  ros__parameters:
+
+    output_topic: cmd_vel_mux
+
+    # ROS parameters have no nested arrays, so the input names are listed and
+    # each one's settings are looked up beneath topics.<name>. Same shape as
+    # stock twist_mux, and the same reason fleet_mission takes a flat goal list.
+    inputs: ["nav", "yield"]
+
+    topics:
+
+      # Ordinary navigation, already smoothed and jerk-limited.
+      nav:
+        topic: cmd_vel_shaped
+        timeout: 0.5
+        priority: 100
+
+      # The yield channel. Higher priority, so while TrafficControlNode is
+      # publishing here the navigation stream is ignored entirely rather than
+      # blended with it.
+      yield:
+        topic: cmd_vel_yield
+        # Comfortably longer than the arbiter's publish period, so a single
+        # dropped message does not release a yield, and short enough that a
+        # genuine release takes effect within a control cycle or two.
+        timeout: 0.5
+        priority: 150

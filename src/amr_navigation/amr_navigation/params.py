@@ -195,14 +195,21 @@ def render_slam_params(robot, namespace=None, scan_topic=SCAN_TOPIC):
     )
 
 
-def lifecycle_nodes():
+def lifecycle_nodes(with_motion_chain=True):
     """Return the Nav2 servers the lifecycle manager brings up, in order.
 
     slam_toolbox is deliberately absent. It is a lifecycle node too, but it drives its
     own transitions in slam.launch.py exactly as upstream's online_async_launch.py does,
     so a SLAM restart does not tear down navigation.
+
+    ``velocity_smoother`` IS a lifecycle node, and that is the trap this argument
+    exists for. It has to be listed here or it never configures, publishes nothing,
+    and the entire command chain goes silent with no error naming it. It equally
+    has to be ABSENT when the motion chain is not launched, because
+    ``nav2_lifecycle_manager`` blocks waiting for a node that will never appear -
+    which does not fail, it hangs the whole bringup.
     """
-    return [
+    nodes = [
         "controller_server",
         "smoother_server",
         "planner_server",
@@ -210,3 +217,6 @@ def lifecycle_nodes():
         "bt_navigator",
         "waypoint_follower",
     ]
+    if with_motion_chain:
+        nodes.append("velocity_smoother")
+    return nodes

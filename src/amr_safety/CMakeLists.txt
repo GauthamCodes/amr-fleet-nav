@@ -53,6 +53,7 @@ install(PROGRAMS
   scripts/safety_run.py
   scripts/stopping_sweep.py
   scripts/failclosed_run.py
+  scripts/priority_mux.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

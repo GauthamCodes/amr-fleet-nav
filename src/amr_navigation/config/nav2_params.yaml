@@ -478,3 +478,43 @@ waypoint_follower:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: true
       waypoint_pause_duration: 200
+
+# ============================================================================
+# THE STOCK VELOCITY SMOOTHER - first link of the payload-adaptive motion chain
+# (assignment 3.1). Nav2 is EXTENDED here, not duplicated (docs/ENGINEERING_NOTES.md rule 6):
+# this node contributes the velocity and acceleration bounds, and our
+# PayloadJerkAdapter downstream contributes only what it lacks - a jerk bound
+# and payload scaling.
+#
+#   cmd_vel_nav -> velocity_smoother -> cmd_vel_smoothed -> PayloadJerkAdapter
+#
+# It is a LIFECYCLE node. See amr_navigation.params.lifecycle_nodes() for why
+# that matters more than it looks like it should.
+# ============================================================================
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    # Clamp each axis independently rather than scaling the whole twist to fit.
+    # Scaling would silently alter the commanded ARC to respect a limit on one
+    # axis, which changes the path the controller asked for.
+    scale_velocities: false
+    # OPEN_LOOP: shape against the last command issued, not against odometry.
+    # CLOSED_LOOP would make this node's output depend on measured velocity,
+    # and the measured velocity already reflects SafetyGate's interventions
+    # downstream - so a halt would feed back into the smoother as though the
+    # controller had asked for it.
+    feedback: "OPEN_LOOP"
+    max_velocity: [__VX_MAX__, 0.0, __WZ_MAX__]
+    min_velocity: [__VX_MIN__, 0.0, -__WZ_MAX__]
+    max_accel: [__AX_MAX__, 0.0, __AZ_MAX__]
+    max_decel: [__AX_MIN__, 0.0, -__AZ_MAX__]
+    odom_topic: "odom"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+    # STATED EXPLICITLY, because the default is not stable across Nav2 releases
+    # and the failure is silent. The rest of this command chain - SafetyGate,
+    # drive_watchdog, the Gazebo DiffDrive plugin - is plain geometry_msgs/Twist.
+    # Publish TwistStamped instead and no subscriber matches, no error is logged
+    # anywhere, and the robot simply never moves.
+    enable_stamped_cmd_vel: false

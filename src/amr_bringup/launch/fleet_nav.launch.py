@@ -122,6 +122,9 @@ def _setup(context, *args, **kwargs):
                     "scan_topic": scan_topic,
                     "with_nav2": with_nav2,
                     "suppress_recovery": suppress_recovery,
+                    "with_motion_chain": LaunchConfiguration(
+                        "with_motion_chain"
+                    ).perform(context),
                     "with_trajectory_layer": LaunchConfiguration(
                         "with_trajectory_layer"
                     ).perform(context),
@@ -176,6 +179,13 @@ def generate_launch_description():
                 default_value="",
                 description="Path stem for the selective-update accept/defer "
                 "evidence. Empty writes nothing.",
+            ),
+            DeclareLaunchArgument(
+                "with_motion_chain",
+                default_value="true",
+                description="Insert the payload-adaptive motion chain between "
+                "Nav2 and SafetyGate on every robot. false is the control arm "
+                "of the Phase 5 A/B and restores the Phase 1/2 wiring.",
             ),
             DeclareLaunchArgument(
                 "with_trajectory_layer",

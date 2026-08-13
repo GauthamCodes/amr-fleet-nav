@@ -53,6 +53,14 @@ SERVERS = (
 #: its own Nav2 launch (see the module docstring) and so has to state it.
 CMD_VEL_PUBLISHERS = frozenset({"controller_server", "behavior_server"})
 
+#: The stock velocity smoother, first link of the payload-adaptive motion chain.
+#:
+#: Listed apart from SERVERS because it is CONDITIONAL: it is a lifecycle node, so
+#: it must appear in both this list and lifecycle_nodes() together or not at all.
+#: Present in one but not the other, the lifecycle manager waits forever for a node
+#: that never appears and the bringup hangs rather than failing.
+SMOOTHER_SERVER = ("nav2_velocity_smoother", "velocity_smoother", "velocity_smoother")
+
 
 def _setup(context, *args, **kwargs):
     robot_name = LaunchConfiguration("robot").perform(context)
@@ -73,6 +81,13 @@ def _setup(context, *args, **kwargs):
         trajectory_layer_enabled=with_layer,
     )
 
+    with_motion_chain = (
+        LaunchConfiguration("with_motion_chain").perform(context).lower() != "false"
+    )
+    servers = list(SERVERS)
+    if with_motion_chain:
+        servers.append(SMOOTHER_SERVER)
+
     nodes = [
         Node(
             package=package,
@@ -81,9 +96,18 @@ def _setup(context, *args, **kwargs):
             output="screen",
             parameters=[params],
             # NO /tf remapping - see the module docstring.
-            remappings=([("cmd_vel", CMD_NAV)] if name in CMD_VEL_PUBLISHERS else []),
+            #
+            # The same remap serves two different roles. For controller_server and
+            # behavior_server, "cmd_vel" is what they PUBLISH. For velocity_smoother
+            # it is what it SUBSCRIBES to, and pointing it at cmd_vel_nav is what
+            # puts the stock smoother first in the chain behind Nav2.
+            remappings=(
+                [("cmd_vel", CMD_NAV)]
+                if name in CMD_VEL_PUBLISHERS or name == SMOOTHER_SERVER[2]
+                else []
+            ),
         )
-        for package, executable, name in SERVERS
+        for package, executable, name in servers
     ]
 
     nodes.append(
@@ -96,7 +120,7 @@ def _setup(context, *args, **kwargs):
                 {
                     "use_sim_time": True,
                     "autostart": True,
-                    "node_names": lifecycle_nodes(),
+                    "node_names": lifecycle_nodes(with_motion_chain),
                     # Phase 0 learned this on the standalone costmap: a managed node
                     # that does not create a bond gets torn down by bond supervision
                     # while running perfectly well.
@@ -128,6 +152,16 @@ def generate_launch_description():
                 description=(
                     "Scan topic relative to the robot namespace. Phase 2 points this "
                     "at SensorBSP's validated output without touching any config."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "with_motion_chain",
+                default_value="true",
+                description=(
+                    "Bring up the stock nav2_velocity_smoother, first link of the "
+                    "payload-adaptive motion chain. It is a lifecycle node, so this "
+                    "flag governs both the node and the lifecycle manager's list - "
+                    "setting one without the other hangs the bringup."
                 ),
             ),
             DeclareLaunchArgument(

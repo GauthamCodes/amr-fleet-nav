@@ -38,6 +38,7 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
+from amr_bsp.topics import CMD_MUX, CMD_NAV
 from amr_description.fleet_config import load_fleet
 from amr_navigation.params import SCAN_TOPIC
 from amr_safety.safety_model import gate_parameters
@@ -55,6 +56,9 @@ def _setup(context, *args, **kwargs):
     scan_topic = LaunchConfiguration("scan_topic").perform(context)
     with_nav2 = LaunchConfiguration("with_nav2").perform(context).lower() != "false"
     suppress_recovery = LaunchConfiguration("suppress_recovery").perform(context)
+    with_motion_chain = (
+        LaunchConfiguration("with_motion_chain").perform(context).lower() != "false"
+    )
     stagger = float(LaunchConfiguration("stagger").perform(context))
 
     fleet = {r["name"]: r for r in load_fleet()}
@@ -116,6 +120,7 @@ def _setup(context, *args, **kwargs):
                         "amr_navigation",
                         "nav2.launch.py",
                         scan_topic=scan_topic,
+                        with_motion_chain=str(with_motion_chain).lower(),
                         with_trajectory_layer=LaunchConfiguration(
                             "with_trajectory_layer"
                         ).perform(context),
@@ -123,9 +128,24 @@ def _setup(context, *args, **kwargs):
                 ],
             )
         )
+        # The two non-lifecycle links of the motion chain. They go up with Nav2
+        # because the stock smoother that feeds them is one of its servers.
+        if with_motion_chain:
+            staged.append(
+                TimerAction(
+                    period=NAV2_START_S + stagger,
+                    actions=[include("amr_motion", "motion_chain.launch.py")],
+                )
+            )
         # The gate goes up WITH Nav2, not before it: its only job until Nav2 exists
         # would be to publish zeros, and its recovery-suppression client would spend
         # that time reporting that controller_server is not there yet.
+        #
+        # ITS INPUT MOVES WITH THE CHAIN. With the motion chain in, the gate reads
+        # the mux output; without it, it reads Nav2 directly, which is the Phase 1
+        # and Phase 2 wiring unchanged. The gate itself does not know the
+        # difference - it is a serial link with one input, and that is the point
+        # of rule 1.
         staged.append(
             TimerAction(
                 period=GATE_START_S + stagger,
@@ -135,6 +155,7 @@ def _setup(context, *args, **kwargs):
                         "safety_gate.launch.py",
                         scan_topic=scan_topic,
                         suppress_recovery=suppress_recovery,
+                        cmd_in_topic=CMD_MUX if with_motion_chain else CMD_NAV,
                     )
                 ],
             )
@@ -175,6 +196,14 @@ def generate_launch_description():
                 description="Set false for the control run that shows Nav2 DOES "
                 "fire recovery behaviours during a halt when nothing suppresses "
                 "them. Without that control, a zero recovery count proves nothing.",
+            ),
+            DeclareLaunchArgument(
+                "with_motion_chain",
+                default_value="true",
+                description="Insert nav2_velocity_smoother -> PayloadJerkAdapter "
+                "-> twist_mux between Nav2 and SafetyGate. false restores the "
+                "direct cmd_vel_nav -> SafetyGate path, which is the Phase 1 and "
+                "Phase 2 wiring and the control arm of the Phase 5 A/B.",
             ),
             DeclareLaunchArgument(
                 "with_trajectory_layer",

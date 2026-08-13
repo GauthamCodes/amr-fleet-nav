@@ -7,7 +7,6 @@
     Payload-adaptive motion smoothing. PayloadJerkAdapter chains AFTER the stock
     nav2_velocity_smoother and adds only what the stock node lacks: jerk limiting and
     payload-scaled acceleration limits. Nav2 is extended here, not duplicated.
-    SKELETON: implemented in Phase 5.
   </description>
   <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
   <license>Apache-2.0</license>
@@ -16,6 +15,18 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>amr_description</exec_depend>
+  <!-- topics.py, the one topic contract. -->
+  <exec_depend>amr_bsp</exec_depend>
+  <!-- The twist_mux priority table is a safety-policy decision and lives in
+       amr_safety/config, next to the gate it feeds. This package launches the
+       node; that package owns what the priorities mean. -->
+  <exec_depend>amr_safety</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

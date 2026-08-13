@@ -52,6 +52,13 @@ fleet:
     max_decel_x: -0.80
     max_vel_theta: 1.00
     max_accel_theta: 1.20
+    # Jerk bounds, m/s^3 and rad/s^3. Sized so the vehicle can reach its own
+    # acceleration limit in about 0.4 s: 0.40 / 0.4 = 1.0, 1.20 / 0.4 = 3.0.
+    # These are the UNLOADED envelope. PayloadJerkAdapter scales both these and
+    # the acceleration limits DOWN as payload rises and never up, so the
+    # adapter can only ever restrict what the plant already permits.
+    max_jerk_x: 1.00
+    max_jerk_theta: 3.00
     # In the main aisle. Rack rows occupy y in [2.75, 3.65] and [-3.65, -2.75] at
     # x = -12, -8.4, -4.8, -1.2, +2.4, so the aisle |y| < 2.75 is clear for all x.
     # The previous (-8.0, -3.0) put this robot's entire footprint inside rack_south_1;
@@ -79,4 +86,9 @@ fleet:
     max_decel_x: -1.40
     max_vel_theta: 1.80
     max_accel_theta: 2.50
+    # Same 0.4 s rule as amr1: 1.00 / 0.4 = 2.5, 2.50 / 0.4 = 6.25 -> 6.0.
+    # The scout is the more agile chassis here as it is everywhere else, and
+    # the difference comes from this file rather than from any code.
+    max_jerk_x: 2.50
+    max_jerk_theta: 6.00
     spawn: {x: -11.0, y: 1.5, z: 0.15, yaw: 0.0}
