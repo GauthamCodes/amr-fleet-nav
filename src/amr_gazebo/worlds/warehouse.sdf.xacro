@@ -40,6 +40,15 @@
   <!-- Spans the full 5.5 m aisle by default. A gap the robot could plan through
        would let Nav2 route around it, and the halt would end as soon as it did. -->
   <xacro:arg name="obstacle_size_y" default="5.5"/>
+  <!-- Width of a gap left in the MIDDLE of that barrier, turning it from a wall
+       into a constriction. 0 keeps the solid wall every run before Phase 7 was
+       measured against. A gap makes both robots' global plans converge on the
+       same few metres of aisle, which is what a narrow intersection IS: not a
+       place they might collide, but the only place either can pass. Sized in
+       Phase 7 so that a robot centred in the gap still clears the barrier ends
+       by more than its own braking envelope - a gap the SafetyGate halts inside
+       would measure the gate, not the yield protocol. -->
+  <xacro:arg name="obstacle_gap_y" default="0.0"/>
   <xacro:arg name="obstacle_size_x" default="0.40"/>
   <xacro:arg name="obstacle_size_z" default="1.20"/>
 
@@ -247,27 +256,46 @@
          is a <model> with a <collision><geometry><box>, world_geometry.static_boxes
          picks it up for free, so the LiDAR-only dynamic/static classifier in
          nav_goal_run scores it as static with no code change. -->
+    <xacro:macro name="barrier_segment" params="name y len">
+      <model name="${name}">
+        <static>true</static>
+        <pose>$(arg obstacle_x) ${y} ${$(arg obstacle_size_z) / 2.0} 0 0 0</pose>
+        <link name="link">
+          <collision name="collision">
+            <geometry>
+              <box><size>$(arg obstacle_size_x) ${len} $(arg obstacle_size_z)</size></box>
+            </geometry>
+          </collision>
+          <visual name="visual">
+            <geometry>
+              <box><size>$(arg obstacle_size_x) ${len} $(arg obstacle_size_z)</size></box>
+            </geometry>
+            <material>
+              <ambient>0.65 0.15 0.10 1</ambient>
+              <diffuse>0.85 0.20 0.15 1</diffuse>
+            </material>
+          </visual>
+        </link>
+      </model>
+    </xacro:macro>
+
     <xacro:if value="${'$(arg with_static_obstacle)'.lower() == 'true'}">
-    <model name="static_barrier">
-      <static>true</static>
-      <pose>$(arg obstacle_x) $(arg obstacle_y) ${$(arg obstacle_size_z) / 2.0} 0 0 0</pose>
-      <link name="link">
-        <collision name="collision">
-          <geometry>
-            <box><size>$(arg obstacle_size_x) $(arg obstacle_size_y) $(arg obstacle_size_z)</size></box>
-          </geometry>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <box><size>$(arg obstacle_size_x) $(arg obstacle_size_y) $(arg obstacle_size_z)</size></box>
-          </geometry>
-          <material>
-            <ambient>0.65 0.15 0.10 1</ambient>
-            <diffuse>0.85 0.20 0.15 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
+      <!-- One wall, or two segments with a gap between them. The segment length
+           follows from the span and the gap, so the barrier always occupies the
+           same total width and only its middle changes. -->
+      <xacro:property name="gap" value="${$(arg obstacle_gap_y)}"/>
+      <xacro:property name="span" value="${$(arg obstacle_size_y)}"/>
+      <xacro:property name="mid" value="${$(arg obstacle_y)}"/>
+      <xacro:unless value="${gap > 0.0}">
+        <xacro:barrier_segment name="static_barrier" y="${mid}" len="${span}"/>
+      </xacro:unless>
+      <xacro:if value="${gap > 0.0}">
+        <xacro:property name="seg" value="${(span - gap) / 2.0}"/>
+        <xacro:barrier_segment name="static_barrier_north"
+                               y="${mid + gap / 2.0 + seg / 2.0}" len="${seg}"/>
+        <xacro:barrier_segment name="static_barrier_south"
+                               y="${mid - gap / 2.0 - seg / 2.0}" len="${seg}"/>
+      </xacro:if>
     </xacro:if>
 
     <!-- ==================== Moving obstacles ====================

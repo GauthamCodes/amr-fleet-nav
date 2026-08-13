@@ -35,6 +35,13 @@
        the same reason every other consumer does: a contract with two copies is
        not a contract. -->
   <exec_depend>amr_bsp</exec_depend>
+  <!-- traffic_policy DERIVES the conflict radius rather than tuning it: two
+       robots are in conflict once they are inside the sum of their footprint
+       radii plus the larger braking envelope, which is the point past which one
+       robot's SafetyGate would already be holding the other. That envelope is
+       amr_safety's d_safe, so the number cannot drift away from the gate's.
+       Acyclic: amr_safety depends on amr_description and amr_bsp only. -->
+  <exec_depend>amr_safety</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

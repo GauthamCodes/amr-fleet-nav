@@ -923,3 +923,130 @@ Also: `install(PROGRAMS)` cannot set the executable bit through a
   unexamined before submission.
 
 ---
+
+## Phase 7 — The yield protocol — 2026-08-13
+
+The last requirement with no implementation. Phase 6 shipped the local half of
+assignment §3.2 — each robot's local costmap consuming its peers' predicted
+trajectories — and left the escalation half with plumbing only: a priority-150
+`cmd_vel_yield` mux channel, timeout-based release semantics, and a unit-tested
+conflict predicate with no caller.
+
+**Built:**
+- `amr_fleet_control/traffic_policy.py` — pure functions: priority order, the
+  derived conflict radius, the escalation test, the release test.
+- `traffic_control.py` (`TrafficControlNode`) and `traffic_report.py` (its
+  records and evidence writer), plus `traffic_control.launch.py`.
+- `fleet_nav.launch.py` gains `with_traffic_control` (default **true**,
+  `TRAFFIC_START_S = 30`, after every predictor) and the arbiter's evidence
+  arguments. It is skipped when there is no mux to command through
+  (`with_motion_chain:=false`) or no Nav2, which is the survey configuration.
+- `warehouse.sdf.xacro` gains `obstacle_gap_y`: the Phase 3 barrier splits into
+  two segments around a gap. `0.0` is the solid wall, so every earlier run's
+  world is byte-identical — verified by rendering both.
+- `fleet_mission` gains `dispatch_offsets`; all-zero is Phase 3's simultaneous
+  dispatch and is the default.
+- `phase7_yield.launch.py` — the forced-conflict run.
+
+**Verified:** `colcon build --symlink-install` 9 packages / 0 errors, `pytest`
+**241 passed** (223 pre-existing + 18 new), flake8 + black clean.
+
+**The arbitration constants are derived from `fleet.yaml`, not tuned.**
+
+| | |
+|---|---|
+| priority | gross mass, ties broken by declaration order → amr1 (90.0 kg) > amr2 (23.0 kg) |
+| conflict radius | **1.94 m** = r(amr1) 0.539 + r(amr2) 0.429 + d_safe(amr1 @ 0.60 m/s) 0.975 |
+| release radius | 2.43 m (1.25× hysteresis) |
+| escalate after | 2.0 s of conflict whose predicted closest approach is not opening |
+
+The radius is the distance at which one robot's SafetyGate would already be
+holding the other, so past it the two cannot resolve anything by driving. That
+is the argument for the number; there is no tuned constant in it, and an `amr3`
+with a longer stopping distance widens it by existing. **No robot is named in
+the arbiter** — the assignment's "AMR-2 yields to AMR-1" falls out of the mass
+column, and `tests/test_traffic_policy.py` asserts that changing the masses
+changes the yield direction.
+
+**EXIT — forced narrow-intersection conflict** (`results/phase7_yield.*`,
+`results/phase7_yield_mission.*`). The Phase 3 barrier at x = −5.0 split around a
+3.0 m gap on the aisle centre line; both goals east of it, so both global plans
+converge on the same few metres. amr2's dispatch held back 5.0 s, because it is
+the faster chassis by configuration and would otherwise be through the gap before
+amr1 arrived:
+
+| | yield 1 | yield 2 |
+|---|---|---|
+| escalated after | 2.0 s of unresolved conflict | 2.0 s |
+| separation at escalation | 1.53 m | 1.76 m |
+| predicted separation **gain** over the conflict's life | **−0.14 m** | **+0.04 m** |
+| **held** | **1.0 s** | **15.2 s** |
+| release condition | conflict cleared (2.43 m) | conflict cleared (2.46 m) |
+| zero-twist commands on `amr2/cmd_vel_yield` | 21 | 305 |
+| `movement_time_allowance` read back at entry / after release | 1 000 000 s / 10 s | 1 000 000 s / 10 s |
+| **recovery behaviours during the hold** | **0** | **0** |
+| SafetyGate blocking during the hold | 0 of 21 cycles | 0 of 305 cycles |
+
+Both goals **SUCCEEDED** — amr1 in 40.0 s (12.72 m driven against a 10.00 m first
+plan), amr2 in 42.9 s (13.62 m against 10.66 m), final position error 0.032 and
+0.151 m. Closest actual approach 0.926 m over 5 091 ground-truth samples;
+recorded separation starts at exactly 3.000 m, which is the spawn separation, so
+the trace begins where the robots actually do.
+
+**The gain column is the escalation argument.** Escalation is refused while the
+predicted closest approach is opening by more than 0.15 m, because that is the
+local layer resolving the conflict on its own (rule 7). Here it opened by −0.14 m
+and +0.04 m — the local layer had first refusal for 2.0 s in both cases and did
+not open the gap, which is exactly what a constriction with no lateral room to
+deviate into looks like from the arbiter's side.
+
+**Section D is not decoration.** A yield and a safety halt both end with a robot
+at a standstill, and the arbiter records the gate's own diagnostics alongside
+every hold for that reason. 0 of 326 held cycles had the gate blocking, so amr2
+was stopped by the arbiter and by nothing else. The gap was sized for this: at
+3.0 m a robot centred in it clears each barrier end by 1.275 m against amr1's
+0.975 m braking envelope, and a tighter gap would have measured the gate.
+
+**Surprises — three:**
+
+1. **The 15.2 s hold is 5.2 s longer than `movement_time_allowance`.** That is
+   the condition Phase 3 measured recoveries firing under, arriving here for a
+   completely different reason — a yield rather than an obstacle — and with the
+   robot free to move the whole time. The suppression was on and 0 recoveries
+   fired. **The necessity claim still rests on Phase 3's A/B**, not on this run:
+   the `suppress_recovery:=false` control arm of this launch exists and is one
+   command, and until it is run this is evidence that the mechanism operates on
+   the yield path, not that it was needed there.
+2. **Two nodes now write the same Nav2 parameter.** SafetyGate raises
+   `movement_time_allowance` on a halt and the arbiter raises it on a yield.
+   Both capture the ORIGINAL value at startup rather than reading whatever is
+   live at entry — otherwise whichever wrote second would latch the other's
+   1e6 as its "original" and restore it forever. The arbiter also re-asserts the
+   value every 2 s while holding, so a gate release mid-yield cannot hand a 10 s
+   allowance back for longer than one period. Neither ordering was exercised in
+   this run; the interaction is designed for, not measured.
+3. **A yield that releases on a stationary robot restores on the grace timer,
+   not on movement.** Hold 2's restore logged "after 0.00 m of motion": the
+   conflict cleared while amr2 was still stopped and it had not begun
+   accelerating when the 2.0 s grace expired. That is the designed fallback
+   (restoring only on movement would never restore a robot that gives up on its
+   goal), and it is why the grace exists as well as the movement radius.
+
+**Carries forward:**
+
+- **`with_traffic_control` defaults to true, so the fleet bringup now contains an
+  arbiter that Phase 3's and Phase 6's artifacts were measured without.** Those
+  numbers are not invalidated - the arbiter acts only on conflicts the local
+  layer did not open up, and neither run produced one - but a re-run of either is
+  not automatically like-for-like. `with_traffic_control:=false` reproduces the
+  old graph exactly.
+- The "resolved without escalation" counter read **0** in this run: only two
+  conflicts occurred and both were at the constriction. The counter is what makes
+  the local-first ordering checkable, and a run in open aisle would be where it
+  reads nonzero. Not run.
+- `conflict_radius` is derived from `amr_safety.safety_model`, which is a new
+  package dependency for `amr_fleet_control` (acyclic: amr_safety depends on
+  amr_description and amr_bsp only). It is what stops the arbiter's idea of "too
+  close" drifting away from the gate's.
+
+---

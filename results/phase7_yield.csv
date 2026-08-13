@@ -1,0 +1,3 @@
+pair,first_seen_s,decided_s,age_s,outcome,min_separation_m,gain_m,yielder,held_s,release_reason,recoveries_during,allowance_entry_s,allowance_exit_s
+amr1|amr2,41.650,43.650,2.000,escalated,1.5296,-0.1436,amr2,1.000,conflict cleared,0,1000000.0,10.0
+amr1|amr2,45.650,47.650,2.000,escalated,1.7115,0.0445,amr2,15.201,conflict cleared,0,1000000.0,10.0

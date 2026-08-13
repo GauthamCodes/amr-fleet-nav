@@ -61,6 +61,12 @@ SPAWN_STAGGER_S = 3.0
 STACK_STAGGER_S = 2.0
 STACK_STAGGER_STEP_S = 2.0
 
+#: When the arbiter comes up. AFTER every robot's TrajectoryPredictor, which is
+#: robot_stack's PREDICTOR_START_S (24) plus the largest stack stagger: its only
+#: inputs are those predictions, and a conflict test with one trajectory in it is
+#: not a conflict test.
+TRAFFIC_START_S = 30.0
+
 #: When the fleet map and the filter group come up. Must be comfortably before the
 #: earliest Nav2, which is robot_stack's NAV2_START_S (22) + STACK_STAGGER_S (2).
 #: It depends on nothing itself - it publishes its frames and an empty map in its
@@ -96,6 +102,7 @@ def _setup(context, *args, **kwargs):
             "obstacle_x": LaunchConfiguration("obstacle_x").perform(context),
             "obstacle_y": LaunchConfiguration("obstacle_y").perform(context),
             "obstacle_size_y": LaunchConfiguration("obstacle_size_y").perform(context),
+            "obstacle_gap_y": LaunchConfiguration("obstacle_gap_y").perform(context),
         },
         headless=headless,
         # Distinct from amr1_nav's warehouse_nav.sdf so a fleet run and a
@@ -130,6 +137,44 @@ def _setup(context, *args, **kwargs):
                     ).perform(context),
                     "stagger": str(STACK_STAGGER_S + index * STACK_STAGGER_STEP_S),
                 },
+            )
+        )
+
+    # The arbiter needs the mux to command a yield through and Nav2 to have
+    # something to arbitrate between, so it follows both. Neither is an error
+    # worth failing on: the survey configuration legitimately runs without them.
+    with_motion_chain = LaunchConfiguration("with_motion_chain").perform(context)
+    with_traffic = LaunchConfiguration("with_traffic_control").perform(context)
+    arbiter_wanted = (
+        with_traffic.lower() != "false"
+        and with_nav2.lower() != "false"
+        and with_motion_chain.lower() != "false"
+    )
+    if arbiter_wanted:
+        actions.append(
+            TimerAction(
+                period=TRAFFIC_START_S,
+                actions=[
+                    _include(
+                        "amr_fleet_control",
+                        "traffic_control.launch.py",
+                        {
+                            "suppress_recovery": suppress_recovery,
+                            "results_stem": LaunchConfiguration(
+                                "traffic_results_stem"
+                            ).perform(context),
+                            "duration_s": LaunchConfiguration(
+                                "traffic_duration_s"
+                            ).perform(context),
+                            "time_window_s": LaunchConfiguration(
+                                "traffic_time_window_s"
+                            ).perform(context),
+                            "title": LaunchConfiguration("traffic_title").perform(
+                                context
+                            ),
+                        },
+                    )
+                ],
             )
         )
 
@@ -194,10 +239,29 @@ def generate_launch_description():
                 "costmap. This is where the MAPF requirement is satisfied; false "
                 "is the control arm of the Phase 6 A/B.",
             ),
+            DeclareLaunchArgument(
+                "with_traffic_control",
+                default_value="true",
+                description="Run the fleet's yield arbiter. It only ever acts on "
+                "conflicts the per-robot FleetTrajectoryLayer did not resolve, so "
+                "leaving it on costs a run nothing until one occurs.",
+            ),
+            DeclareLaunchArgument("traffic_results_stem", default_value=""),
+            DeclareLaunchArgument("traffic_duration_s", default_value="0.0"),
+            DeclareLaunchArgument("traffic_time_window_s", default_value="3.0"),
+            DeclareLaunchArgument(
+                "traffic_title", default_value="PHASE 7 - yield protocol"
+            ),
             DeclareLaunchArgument("with_static_obstacle", default_value="false"),
             DeclareLaunchArgument("obstacle_x", default_value="-5.0"),
             DeclareLaunchArgument("obstacle_y", default_value="0.0"),
             DeclareLaunchArgument("obstacle_size_y", default_value="5.5"),
+            DeclareLaunchArgument(
+                "obstacle_gap_y",
+                default_value="0.0",
+                description="Width of a gap left in the middle of the barrier. 0 "
+                "is the solid barrier every earlier run was measured against.",
+            ),
             OpaqueFunction(function=_setup),
         ]
     )

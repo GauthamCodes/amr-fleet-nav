@@ -31,6 +31,7 @@ setup(
             "fleet_mission = amr_fleet_control.fleet_mission:main",
             "trajectory_predictor = amr_fleet_control.trajectory_predictor:main",
             "trajectory_probe = amr_fleet_control.trajectory_probe:main",
+            "traffic_control = amr_fleet_control.traffic_control:main",
         ],
     },
 )

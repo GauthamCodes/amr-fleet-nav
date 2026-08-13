@@ -137,6 +137,14 @@ class FleetMission(Node):
             "The two routes are deconflicted by design; the forced conflict, "
             "mutual local deviation and the yield protocol are Phases 6 and 7.",
         )
+        # Seconds to hold each robot's goal back, in fleet.yaml order. All zeros
+        # is Phase 3's simultaneous dispatch and is the default, so that run's
+        # artifacts are unaffected. The Phase 7 forced conflict needs the LEAD
+        # robot committed to the intersection before the faster follower reaches
+        # it - amr2 is the quicker chassis by configuration and would otherwise
+        # simply arrive first and be gone. Staging the encounter is the point of
+        # a forced-conflict run; the report states the offset it was staged with.
+        self.declare_parameter("dispatch_offsets", [0.0])
         self.declare_parameter("start_delay_s", 5.0)
         self.declare_parameter("timeout_s", 180.0)
         self.declare_parameter("linger_s", 3.0)
@@ -152,6 +160,8 @@ class FleetMission(Node):
 
         fleet = load_fleet()
         goals = self._goals_for(fleet)
+        self.offsets = self._offsets_for(fleet)
+        self.dispatch_epoch = None
 
         self.runs = {}
         for robot in fleet:
@@ -207,6 +217,20 @@ class FleetMission(Node):
             robot["name"]: tuple(float(v) for v in flat[3 * i : 3 * i + 3])
             for i, robot in enumerate(fleet)
         }
+
+    def _offsets_for(self, fleet):
+        """Return ``{robot_name: seconds}`` from the flat dispatch-offset list.
+
+        A shorter list is padded with zeros, so the one-element default means
+        "everyone at once" for a fleet of any size and no run has to restate it.
+        """
+        offsets = [float(v) for v in self.get_parameter("dispatch_offsets").value]
+        if len(offsets) > len(fleet):
+            raise ValueError(
+                f"'dispatch_offsets' has {len(offsets)} values for {len(fleet)} robots"
+            )
+        offsets += [0.0] * (len(fleet) - len(offsets))
+        return {robot["name"]: offsets[i] for i, robot in enumerate(fleet)}
 
     def now_s(self):
         """Return the current simulation time in seconds."""
@@ -315,6 +339,7 @@ class FleetMission(Node):
             return
 
         if self.state == "running":
+            self._dispatch_due()
             if all(r.status not in ("PENDING", "RUNNING") for r in self.runs.values()):
                 self.state = "lingering"
                 self.finished_at = self.now_s()
@@ -335,14 +360,25 @@ class FleetMission(Node):
                 rclpy.shutdown()
 
     def _dispatch_all(self):
-        """Send every robot's goal without waiting for any of them.
+        """Open the dispatch window and send every goal that is due immediately.
 
-        Sent in one pass rather than one per tick: the whole point of the run is that
-        both stacks are planning and driving at the same time, and staggering the
-        dispatch by even a second would let the first robot clear the aisle first.
+        With the default all-zero offsets that is every goal, in one pass rather
+        than one per tick: the whole point of Phase 3's run is that both stacks
+        are planning and driving at the same time, and staggering the dispatch by
+        even a second would let the first robot clear the aisle first. A run that
+        deliberately wants that staging asks for it through ``dispatch_offsets``.
         """
         self.state = "running"
+        self.dispatch_epoch = self.now_s()
+        self._dispatch_due()
+
+    def _dispatch_due(self):
+        """Send the goal of every robot whose offset has elapsed."""
         for run in self.runs.values():
+            if run.status != "PENDING":
+                continue
+            if self.now_s() - self.dispatch_epoch < self.offsets[run.name]:
+                continue
             x, y, yaw = run.goal
             goal = NavigateToPose.Goal()
             goal.pose = PoseStamped()
@@ -401,6 +437,11 @@ class FleetMission(Node):
         add(rule)
         add(f"robots dispatched together:   {len(self.runs)}")
         add(f"goal frame:                   {FLEET_FRAME} (= the Gazebo world frame)")
+        staged = ", ".join(f"{n} +{s:.1f}s" for n, s in self.offsets.items())
+        add(
+            f"dispatch:                     "
+            f"{'all together' if not any(self.offsets.values()) else staged}"
+        )
         add(thin)
         add("[A] PER ROBOT")
         add("")
