@@ -2,7 +2,8 @@
 
 Everything that differs between robots - the mast height, the plausible turn rate,
 the camera resolution, the PitchGate floor - arrives as a parameter computed by the
-launch file from fleet.yaml. There is no robot name in this file (docs/ENGINEERING_NOTES.md rule 5).
+launch file from fleet.yaml. There is no robot name in this file (ENGINEERING_NOTES rule
+5).
 
 HOW PITCHGATE GETS ITS ANGLE, AND AT WHAT RATE
 

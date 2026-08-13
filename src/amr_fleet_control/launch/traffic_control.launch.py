@@ -6,7 +6,7 @@ namespaced copy per robot would be N arbiters each seeing one side of every
 conflict and each entitled to command a yield. This is the one node in the
 system that is legitimately central - and it is central ONLY for escalation,
 because the routine case is resolved inside each robot's own local costmap by
-``FleetTrajectoryLayer`` (docs/ENGINEERING_NOTES.md rule 7).
+``FleetTrajectoryLayer`` (ENGINEERING_NOTES rule 7).
 
 IT NEEDS THE MOTION CHAIN. The yield channel is a priority-150 input on each
 robot's ``twist_mux``. With ``with_motion_chain:=false`` there is no mux - the

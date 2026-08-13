@@ -1,6 +1,7 @@
 """The topic contract between the sensors, the BSP, and everything downstream.
 
-docs/ENGINEERING_NOTES.md rule 8 says sensor data reaches Nav2 only through SensorBSP. A rule like
+ENGINEERING_NOTES rule 8 says sensor data reaches Nav2 only through SensorBSP. A rule
+like
 that is only worth having if there is one place it can be checked, so the names live
 here and every consumer imports them: ``amr_navigation.params`` renders them into
 the Nav2 and slam_toolbox templates, the SafetyGate launch passes them to the C++

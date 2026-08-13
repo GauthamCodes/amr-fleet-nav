@@ -2,7 +2,7 @@
 //
 // SafetyGate: the low-latency safety override.
 //
-// WHY THIS IS A SERIAL GATE AND NOT A twist_mux INPUT (docs/ENGINEERING_NOTES.md rule 1)
+// WHY THIS IS A SERIAL GATE AND NOT A twist_mux INPUT (ENGINEERING_NOTES rule 1)
 //   A mux arbitrates between sources. If the arbiter dies, the highest-priority
 //   source that is still alive wins - which means a dead safety node lets ordinary
 //   navigation commands straight through. That is failing OPEN, and it is the wrong

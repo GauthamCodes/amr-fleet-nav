@@ -130,7 +130,10 @@ class TrajectoryPredictor(Node):
         self.plan_time = self.get_clock().now()
 
     def _on_odom(self, msg):
-        """Record MEASURED forward speed (docs/ENGINEERING_NOTES.md rule 3, same as SafetyGate)."""
+        """Record MEASURED forward speed, never commanded.
+
+        ENGINEERING_NOTES rule 3, the same rule SafetyGate is built on.
+        """
         self.speed = float(msg.twist.twist.linear.x)
 
     def _pose_in_fleet_frame(self):

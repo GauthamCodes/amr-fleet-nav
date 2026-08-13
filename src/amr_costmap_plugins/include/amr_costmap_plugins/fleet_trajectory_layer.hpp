@@ -11,7 +11,7 @@
 //
 // It is deliberately NOT a central node that hands out schedules. Each robot
 // consumes its peers' intentions and resolves what it can locally; only what it
-// cannot resolve escalates to TrafficControlNode (docs/ENGINEERING_NOTES.md rule 7).
+// cannot resolve escalates to TrafficControlNode (ENGINEERING_NOTES rule 7).
 
 #ifndef AMR_COSTMAP_PLUGINS__FLEET_TRAJECTORY_LAYER_HPP_
 #define AMR_COSTMAP_PLUGINS__FLEET_TRAJECTORY_LAYER_HPP_

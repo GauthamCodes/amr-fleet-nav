@@ -21,7 +21,7 @@ WHY JERK AT ALL, GIVEN THE STOCK SMOOTHER ALREADY LIMITS ACCELERATION
     and on a loaded AMR that is what tips a pallet, not the acceleration itself:
     the load sees an impulsive change in force. Bounding the second derivative is
     the thing the stock node does not do, and it is the whole reason this module
-    exists rather than a second copy of the smoother (docs/ENGINEERING_NOTES.md rule 6).
+    exists rather than a second copy of the smoother (ENGINEERING_NOTES rule 6).
 
 THE PAYLOAD MODEL, AND WHICH DIRECTION IT SCALES
 

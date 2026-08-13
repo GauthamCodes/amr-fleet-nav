@@ -23,7 +23,7 @@ WHAT "REJECT" COSTS
     (geometry that cannot be interpreted) rather than statistical (a scan that looks
     unusual). Individual bad BEAMS are handled by PitchGate and by the obstacle
     layer's own range filtering, never by dropping the scan around them. See
-    docs/ENGINEERING_NOTES.md rule 2.
+    ENGINEERING_NOTES rule 2.
 """
 
 import math

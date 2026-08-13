@@ -1,6 +1,6 @@
 # flake8 configuration.
 #
-# docs/ENGINEERING_NOTES.md mandates PEP 8 enforced by BOTH flake8 and black. Where the two disagree,
+# ENGINEERING_NOTES mandates PEP 8 enforced by BOTH flake8 and black. Where the two disagree,
 # black wins and flake8 is configured to stop arguing:
 #
 #   Q000  flake8-quotes prefers single quotes; black normalises to double.
@@ -35,7 +35,7 @@ exclude =
     .tooling
 
 per-file-ignores =
-    # docs/ENGINEERING_NOTES.md requires docstrings on every CLASS. A pytest function named
+    # ENGINEERING_NOTES requires docstrings on every CLASS. A pytest function named
     # test_heavier_robot_is_actually_heavier documents itself, and a mandated
     # one-line restatement above it would be noise.
     tests/*:D103

@@ -3,7 +3,8 @@
 The C++ node contains no robot names and no robot knowledge. Everything that
 differs between amr1 and amr2 - the stopping gain, the footprint polygon, the laser
 offset - is computed here by ``amr_safety.safety_model`` and handed over as
-parameters, which is what keeps docs/ENGINEERING_NOTES.md rule 5 true of a safety-critical node and
+parameters, which is what keeps ENGINEERING_NOTES rule 5 true of a safety-critical node
+and
 what makes an amr3 a fleet.yaml edit rather than a code change.
 """
 

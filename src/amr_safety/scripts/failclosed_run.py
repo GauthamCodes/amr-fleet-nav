@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """PHASE 2 - what happens to a moving robot when the SafetyGate is SIGKILLed.
 
-docs/ENGINEERING_NOTES.md rule 1 says that if the gate dies, nothing moves. Being the only publisher
+ENGINEERING_NOTES rule 1 says that if the gate dies, nothing moves. Being the only
+publisher
 of the robot's command topic is necessary for that and not sufficient: it guarantees
 no NEW command reaches the wheels and says nothing about the one already there.
 Gazebo's DiffDrive latches its last target velocity indefinitely - verified against

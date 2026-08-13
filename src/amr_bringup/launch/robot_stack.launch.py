@@ -9,7 +9,7 @@ other.
 PHASE 2 ADDED TWO LINKS, AND THIS IS THE ONLY FILE THAT KNOWS BOTH ENDS
 
     Sensor path:  gz -> /amrN/{scan,imu,camera} -> SensorBSP -> /amrN/validated/*
-                  -> slam_toolbox and both Nav2 costmaps (docs/ENGINEERING_NOTES.md rule 8)
+                  -> slam_toolbox and both Nav2 costmaps (ENGINEERING_NOTES rule 8)
 
     Command path: controller_server and behavior_server -> /amrN/cmd_vel_nav
                   -> SafetyGate -> /amrN/cmd_vel -> drive_watchdog (plant)

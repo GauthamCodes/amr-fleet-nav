@@ -3,7 +3,8 @@
 
 WHY THIS EXISTS
 
-    docs/ENGINEERING_NOTES.md rule 1 says that if SafetyGate dies, nothing moves. Making the gate the
+    ENGINEERING_NOTES rule 1 says that if SafetyGate dies, nothing moves. Making the
+    gate the
     only publisher of ``/amrN/cmd_vel`` is necessary for that but not sufficient: it
     guarantees no NEW command reaches the wheels, and says nothing about the command
     already there. Gazebo's DiffDrive latches its last target velocity indefinitely -

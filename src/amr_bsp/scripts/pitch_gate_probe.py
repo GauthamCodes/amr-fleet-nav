@@ -3,7 +3,8 @@
 
 WHY THIS SUBSCRIBES TO A RAW SENSOR TOPIC
 
-    docs/ENGINEERING_NOTES.md rule 8 says nothing subscribes to raw sensor topics. This node is the
+    ENGINEERING_NOTES rule 8 says nothing subscribes to raw sensor topics. This node is
+    the
     stated exemption, and the reason is structural rather than convenient: an
     instrument that measures what the BSP removed has to see both sides of it. Every
     node in the NAVIGATION STACK reads validated topics only; this one is measuring
@@ -300,7 +301,7 @@ class PitchGateProbe(Node):
         add(f"validated scans:          {self.matched + self.unmatched}")
         add(thin)
 
-        add("[0] HEADER STAMP PRESERVATION  (docs/ENGINEERING_NOTES.md rule 4)")
+        add("[0] HEADER STAMP PRESERVATION  (ENGINEERING_NOTES rule 4)")
         add(f"    raw/validated pairs matched by EXACT stamp: {self.matched:8d}")
         add(f"    RESTAMPED (no matching raw stamp):          {self.unmatched:8d}")
         add(

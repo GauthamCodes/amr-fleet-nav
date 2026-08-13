@@ -8,7 +8,7 @@ the three properties that make it SAFE to happen:
       decide the other should yield (deadlock) or each decide to yield (also
       deadlock, politely);
     * escalation is reluctant, so a conflict the local FleetTrajectoryLayer is
-      already opening up is left to it (docs/ENGINEERING_NOTES.md rule 7);
+      already opening up is left to it (ENGINEERING_NOTES rule 7);
     * a hold always ends, and the report can tell the two ways it ends apart.
 """
 

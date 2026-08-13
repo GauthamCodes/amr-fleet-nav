@@ -4,7 +4,7 @@ The SafetyGate itself is C++ because it sits in the command path. This module is
 the SIZING side of the same contract: it derives the per-robot constants the gate
 runs on, the launch file passes them in as parameters, and ``tests/`` exercises them
 without a simulator. The gate contains no robot knowledge and no robot names, which
-is what keeps docs/ENGINEERING_NOTES.md rule 5 true of a safety-critical node.
+is what keeps ENGINEERING_NOTES rule 5 true of a safety-critical node.
 
 WHY k IS DERIVED RATHER THAN TUNED
 
@@ -147,7 +147,7 @@ def d_safe(k, d_min, speed):
     """Return the safe following distance at a measured speed, in metres.
 
     ``speed`` is the MEASURED speed from odometry, never the commanded one
-    (docs/ENGINEERING_NOTES.md rule 3). Its sign is irrelevant - the square removes it - so a
+    (ENGINEERING_NOTES rule 3). Its sign is irrelevant - the square removes it - so a
     reversing robot gets the same envelope as a forward one.
     """
     return k * speed * speed + d_min

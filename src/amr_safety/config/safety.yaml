@@ -56,7 +56,7 @@ safety:
 
   # No scan in this long -> BLOCK. Fail-closed: an unknown world is treated as an
   # occupied one. This is the opposite of what a mux does, which is the whole
-  # reason the gate is serial (docs/ENGINEERING_NOTES.md rule 1).
+  # reason the gate is serial (ENGINEERING_NOTES rule 1).
   scan_timeout_s: 0.5
 
   # Half-angle of the obstacle search sector, centred on the COMMANDED direction
@@ -70,7 +70,7 @@ safety:
   self_return_margin: 0.01
 
   # --------------------------------------------------------------------------
-  # Recovery suppression (docs/ENGINEERING_NOTES.md rule 2: gating without notification is a bug)
+  # Recovery suppression (ENGINEERING_NOTES rule 2: gating without notification is a bug)
   # --------------------------------------------------------------------------
 
   # Written to controller_server's progress_checker.movement_time_allowance while

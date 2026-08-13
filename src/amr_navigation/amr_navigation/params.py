@@ -22,7 +22,8 @@ TOPIC INDIRECTION, RESOLVED IN PHASE 2
     resolved it to ``scan``; Phase 2 points it at SensorBSP's validated output, and
     neither ``nav2_params.yaml`` nor ``slam_params.yaml`` changed a character. The name
     is imported from ``amr_bsp.topics`` rather than restated, so the producer and every
-    consumer cannot disagree about it - which is the only way docs/ENGINEERING_NOTES.md rule 8 is
+    consumer cannot disagree about it - which is the only way ENGINEERING_NOTES rule 8
+    is
     checkable rather than merely asserted.
 """
 
@@ -37,7 +38,7 @@ from amr_description.fleet_config import footprint_polygon, frame_prefix, load_f
 from amr_fleet_control.fleet_grid import FLEET_FRAME, FLEET_MAP_TOPIC
 
 #: Topic the navigation stack reads scans from, relative to the robot namespace.
-#: Nothing in the stack subscribes to the raw sensor (docs/ENGINEERING_NOTES.md rule 8).
+#: Nothing in the stack subscribes to the raw sensor (ENGINEERING_NOTES rule 8).
 SCAN_TOPIC = VALIDATED_SCAN
 
 
@@ -74,7 +75,7 @@ def peer_trajectory_topics(robot):
     FleetTrajectoryLayer subscribes to whatever list it is given; the exclusion
     of self is a property of the fleet, and the fleet lives in fleet.yaml. So
     there is no robot name and no self-comparison inside any node, and adding an
-    amr3 wires it into amr1 and amr2 automatically (docs/ENGINEERING_NOTES.md rule 5).
+    amr3 wires it into amr1 and amr2 automatically (ENGINEERING_NOTES rule 5).
 
     Absolute names, not relative: this list is rendered into a parameter file
     read by a node inside /amrN, where a relative "predicted_trajectory" would

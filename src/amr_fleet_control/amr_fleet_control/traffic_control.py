@@ -3,7 +3,8 @@
 ASSIGNMENT 3.2, THE SECOND HALF. The first half - each robot's local planner
 consuming its peers' predicted trajectories - is ``FleetTrajectoryLayer``, and it
 runs with no central node in the loop. This node is the escalation path, and
-docs/ENGINEERING_NOTES.md rule 7 is that the two must not be collapsed into one another: a central
+ENGINEERING_NOTES rule 7 is that the two must not be collapsed into one another: a
+central
 arbiter that resolved every conflict would make the MAPF layer decorative, and a
 local layer alone deadlocks at a constriction where neither robot has anywhere to
 deviate to.

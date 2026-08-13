@@ -9,10 +9,10 @@
 # DELIBERATELY ABSENT
 #   amcl, map_server   - Phase 1 maps with slam_toolbox; it does not localize
 #                        against a prior map.
-#   collision_monitor  - superseded by SafetyGate (docs/ENGINEERING_NOTES.md rule 1). SafetyGate
+#   collision_monitor  - superseded by SafetyGate (ENGINEERING_NOTES rule 1). SafetyGate
 #                        is a SERIAL, fail-closed gate, not a Nav2 plugin.
 #   velocity_smoother  - Phase 5's chaining point for PayloadJerkAdapter
-#                        (docs/ENGINEERING_NOTES.md rule 6). Adding it now would mean renaming
+#                        (ENGINEERING_NOTES rule 6). Adding it now would mean renaming
 #                        topics later.
 #   route_server, docking_server, loopback_simulator - not in scope.
 #
@@ -57,7 +57,7 @@ controller_server:
     # Declared explicitly rather than left to the default because Phase 2's
     # SafetyGate must raise movement_time_allowance whenever it zeroes cmd_vel,
     # or Nav2 sees a stuck robot and fires recovery behaviours mid-halt
-    # (docs/ENGINEERING_NOTES.md rule 2). A parameter that is not declared cannot be set.
+    # (ENGINEERING_NOTES rule 2). A parameter that is not declared cannot be set.
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
@@ -297,7 +297,7 @@ local_costmap:
       # costmap, subscribed to /amr1/predicted_trajectory. The peer list is
       # rendered per robot by amr_navigation.params from fleet.yaml - "everyone
       # except me" - so a third robot in that file is consumed by the first two
-      # with no code change and no robot named anywhere (docs/ENGINEERING_NOTES.md rule 5).
+      # with no code change and no robot named anywhere (ENGINEERING_NOTES rule 5).
       # ======================================================================
       fleet_trajectory_layer:
         plugin: "amr_costmap_plugins::FleetTrajectoryLayer"
@@ -481,7 +481,7 @@ waypoint_follower:
 
 # ============================================================================
 # THE STOCK VELOCITY SMOOTHER - first link of the payload-adaptive motion chain
-# (assignment 3.1). Nav2 is EXTENDED here, not duplicated (docs/ENGINEERING_NOTES.md rule 6):
+# (assignment 3.1). Nav2 is EXTENDED here, not duplicated (ENGINEERING_NOTES rule 6):
 # this node contributes the velocity and acceleration bounds, and our
 # PayloadJerkAdapter downstream contributes only what it lacks - a jerk bound
 # and payload scaling.

@@ -35,7 +35,7 @@ void FleetTrajectoryLayer::onInitialize()
   declareParameter("enabled", rclcpp::ParameterValue(true));
   // Rendered per robot by amr_navigation.params as "every robot in fleet.yaml
   // except me". The exclusion lives in config generation, which is what keeps
-  // this file free of any robot name (docs/ENGINEERING_NOTES.md rule 5).
+  // this file free of any robot name (ENGINEERING_NOTES rule 5).
   declareParameter("trajectory_topics", rclcpp::ParameterValue(std::vector<std::string>{}));
   declareParameter("horizon_s", rclcpp::ParameterValue(6.0));
   declareParameter("decay_tau_s", rclcpp::ParameterValue(3.0));

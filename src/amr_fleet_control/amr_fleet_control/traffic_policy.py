@@ -4,7 +4,7 @@ Pure functions, no ROS imports - the same shape as :mod:`selective_policy` and
 :mod:`trajectory_predict`, and for the same reason: an arbitration rule that can
 only be exercised by launching two robots is a rule nobody can check.
 
-WHERE THIS SITS IN THE CONFLICT PIPELINE (docs/ENGINEERING_NOTES.md rule 7)
+WHERE THIS SITS IN THE CONFLICT PIPELINE (ENGINEERING_NOTES rule 7)
 
     Every robot's local planner already consumes its peers' predicted
     trajectories through ``FleetTrajectoryLayer``. That is the MAPF requirement

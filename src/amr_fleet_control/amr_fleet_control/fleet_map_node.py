@@ -95,7 +95,7 @@ class FleetMapNode(Node):
     """Composite per-robot SLAM maps into ``/fleet_map`` under a scored update policy.
 
     Loops over the typed robot list and never names a robot, so a third entry in
-    fleet.yaml is composited with no code change (docs/ENGINEERING_NOTES.md rule 5).
+    fleet.yaml is composited with no code change (ENGINEERING_NOTES rule 5).
     """
 
     def __init__(self):

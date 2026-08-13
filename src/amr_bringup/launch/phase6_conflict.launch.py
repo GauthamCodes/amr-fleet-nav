@@ -109,7 +109,7 @@ def _setup(context, *args, **kwargs):
     # The probe observes amr2 and reports on amr1, which is the direction the
     # yield protocol also runs in: amr1 is the lead, amr2 is the follower that
     # gives way. Both are named here because a probe is an instrument, not part
-    # of the fleet - docs/ENGINEERING_NOTES.md rule 5 is about the SYSTEM having no per-robot
+    # of the fleet - ENGINEERING_NOTES rule 5 is about the SYSTEM having no per-robot
     # branching, and it does not.
     probe = Node(
         package="amr_fleet_control",

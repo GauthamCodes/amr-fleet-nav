@@ -2,7 +2,7 @@
 # twist_mux.yaml - the command-source priority table.
 #
 # The mux is the LAST link before SafetyGate and is never the gate itself
-# (docs/ENGINEERING_NOTES.md rule 1). A mux selects the highest-priority input that is still
+# (ENGINEERING_NOTES rule 1). A mux selects the highest-priority input that is still
 # publishing, so when its own process dies the robot keeps whatever the plant
 # last latched: it fails OPEN. The gate is a serial link that emits zero when
 # anything goes quiet: it fails CLOSED. Those are opposite failure modes and

@@ -4,7 +4,7 @@ NAMESPACED, unlike fleet_map.launch.py. There is one fleet map but there is one
 predictor PER ROBOT: each publishes its own intentions on its own
 ``/amrN/predicted_trajectory``, and its peers subscribe. Collapsing this into a
 single fleet-wide node that predicted for everybody would be the central
-coordinator docs/ENGINEERING_NOTES.md rule 7 exists to prevent, wearing a different name.
+coordinator ENGINEERING_NOTES rule 7 exists to prevent, wearing a different name.
 """
 
 from launch import LaunchDescription

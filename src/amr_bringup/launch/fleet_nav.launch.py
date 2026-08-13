@@ -2,7 +2,7 @@
 
 The only fleet-aware code here is a loop over ``load_fleet()``. Every robot goes
 through the same ``robot_actions`` and the same ``robot_stack.launch.py``, and no
-robot is named anywhere in this file (docs/ENGINEERING_NOTES.md rule 5) - so a third entry in
+robot is named anywhere in this file (ENGINEERING_NOTES rule 5) - so a third entry in
 fleet.yaml brings up a third namespaced stack with no code change. That is what
 "configuration-driven scaling" means here: bounded to one file, not free.
 

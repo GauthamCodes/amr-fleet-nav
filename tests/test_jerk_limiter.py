@@ -280,7 +280,7 @@ def test_deceleration_limits_are_stored_negative():
 def test_the_two_robots_have_genuinely_different_envelopes():
     """The fleet YAML must actually express a difference.
 
-    Robot differences come from YAML only (docs/ENGINEERING_NOTES.md rule 5), which is only
+    Robot differences come from YAML only (ENGINEERING_NOTES rule 5), which is only
     meaningful if the YAML says something different about each robot.
     """
     fleet = {r["name"]: limits_from_robot(r) for r in load_fleet()}

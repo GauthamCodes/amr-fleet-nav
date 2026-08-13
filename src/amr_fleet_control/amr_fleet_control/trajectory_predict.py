@@ -11,7 +11,7 @@ other side of the wire, where ``dt`` drives the cost decay.
 
 WHY SPEED IS MEASURED RATHER THAN COMMANDED
 
-    The same reason SafetyGate uses odometry (docs/ENGINEERING_NOTES.md rule 3). A prediction
+    The same reason SafetyGate uses odometry (ENGINEERING_NOTES rule 3). A prediction
     built from the command is a prediction of what the controller intends, and a
     robot that is stalled, gated, or yielding intends plenty while going nowhere.
     A peer that believes a halted robot is about to sweep through the

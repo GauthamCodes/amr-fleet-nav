@@ -77,7 +77,7 @@ def test_the_gain_is_one_over_twice_the_effective_deceleration(fleet):
 
 
 def test_payload_lengthens_the_stopping_distance(fleet):
-    """The payload scaling docs/ENGINEERING_NOTES.md rule 3 requires, as a property not a constant."""
+    """The payload scaling rule 3 requires, as a property rather than a constant."""
     robot = dict({r["name"]: r for r in fleet}["amr1"])
     unloaded = dict(robot, payload_kg=0.0)
     heavier = dict(robot, payload_kg=2.0 * float(robot["payload_kg"]))

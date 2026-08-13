@@ -76,7 +76,7 @@ WHAT A TRUNCATED BEAM BECOMES
     strength of a ray that actually hit the floor, asserting free space we cannot
     see. Beam count, ordering and the header are untouched, so the scan stays a
     well-formed observation and Nav2's only observation source never goes silent
-    (docs/ENGINEERING_NOTES.md rule 2).
+    (ENGINEERING_NOTES rule 2).
 """
 
 import math

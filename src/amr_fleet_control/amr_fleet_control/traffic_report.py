@@ -6,7 +6,7 @@ arbiter makes the arbitration harder to read than it should be.
 
 WHAT THE REPORT HAS TO SHOW, AND WHY EACH PART IS THERE
 
-    Section A is the escalation ordering (docs/ENGINEERING_NOTES.md rule 7). A yield count alone
+    Section A is the escalation ordering (ENGINEERING_NOTES rule 7). A yield count alone
     would say nothing about whether the local layer was given first refusal, so
     every conflict the arbiter DECLINED to act on is counted beside every one it
     took, with the age and the separation gain that decided it.
@@ -172,7 +172,7 @@ def _section_yields(node, add, thin):
 
 def _section_recovery(node, add, thin):
     """Section C: what Nav2 did while a robot was held."""
-    add("[C] NAV2 RECOVERY DURING THE HOLD  (docs/ENGINEERING_NOTES.md rule 2)")
+    add("[C] NAV2 RECOVERY DURING THE HOLD  (ENGINEERING_NOTES rule 2)")
     if not node.bt_log_available:
         add("    behaviour-tree log unavailable on this Nav2 build")
         add(thin)

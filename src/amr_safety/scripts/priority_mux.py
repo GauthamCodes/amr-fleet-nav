@@ -38,7 +38,7 @@ SEMANTICS, WHICH ARE THE POINT
     This node is NOT the safety element and must never be treated as one. It
     fails open by construction: if it dies, its last output is whatever the
     plant latched. SafetyGate is downstream, serial and fail-closed, and that
-    ordering is docs/ENGINEERING_NOTES.md rule 1.
+    ordering is ENGINEERING_NOTES rule 1.
 """
 
 from geometry_msgs.msg import Twist

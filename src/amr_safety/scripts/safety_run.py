@@ -560,7 +560,7 @@ class SafetyRun(Node):
         add(thin)
 
     def _add_recovery_section(self, add, thin):
-        add("[C] NAV2 RECOVERY BEHAVIOUR DURING THE HALT  (docs/ENGINEERING_NOTES.md rule 2)")
+        add("[C] NAV2 RECOVERY BEHAVIOUR DURING THE HALT  (ENGINEERING_NOTES rule 2)")
         if not self.bt_log_available:
             add("    behaviour-tree log unavailable on this Nav2 build")
             add(thin)

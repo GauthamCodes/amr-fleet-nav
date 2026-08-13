@@ -15,10 +15,20 @@ rosbags/**/*.db3
 rosbags/**/*.mcap
 rosbags/**/metadata.yaml
 results/*.png
-# ...except the Phase 1 evidence figures. They are small, they are the artifact an
+# ...except the evidence figures. They are small, they are the artifact an
 # evaluator looks at first, and a .pgm does not render in a browser.
 !results/phase1_*.png
 !results/phase2_*.png
+# phase5_payload_trace.png is the payload-adaptive deliverable itself - the
+# velocity/jerk plot, loaded against unloaded. It was excluded by the glob above
+# and therefore silently absent from the repository while being cited as the
+# headline artifact of that requirement.
+!results/phase5_*.png
 
 # Worlds rendered from xacro at launch time.
 generated/
+
+# Local tooling: session state and the git worktrees it works in. A worktree is a
+# full checkout of this repository, so committing this directory would nest the
+# repository inside itself.
+.tooling/

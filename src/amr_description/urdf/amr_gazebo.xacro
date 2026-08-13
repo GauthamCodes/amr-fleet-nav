@@ -141,7 +141,7 @@
            timeout - verified against the plugin binary, whose only cmd-related string
            is the topic name. Without it, a SIGKILLed SafetyGate leaves the plant
            rolling on the last velocity it latched, and "if the node dies, nothing
-           moves" (docs/ENGINEERING_NOTES.md rule 1) would be a claim the simulator cannot honour.
+           moves" (ENGINEERING_NOTES rule 1) would be a claim the simulator cannot honour.
            Real motor controllers stop when their command stream stops; the watchdog
            models exactly that and belongs to the plant, not to the nav stack. -->
       <topic>${name}/cmd_vel_plant</topic>

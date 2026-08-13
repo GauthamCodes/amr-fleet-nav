@@ -1,7 +1,7 @@
 """PayloadJerkAdapter: the one link the stock smoother does not provide.
 
 Sits AFTER ``nav2_velocity_smoother`` in the command chain, not instead of it
-(docs/ENGINEERING_NOTES.md rule 6):
+(ENGINEERING_NOTES rule 6):
 
     Nav2 -> cmd_vel_nav -> nav2_velocity_smoother -> cmd_vel_smoothed
          -> PayloadJerkAdapter -> cmd_vel_shaped -> twist_mux -> SafetyGate

@@ -16,7 +16,7 @@ namespace amr_safety
 
 /// Returns the safe following distance at a measured speed, in metres.
 ///
-/// `speed` is MEASURED, from odometry, never commanded (docs/ENGINEERING_NOTES.md rule 3). Its
+/// `speed` is MEASURED, from odometry, never commanded (ENGINEERING_NOTES rule 3). Its
 /// sign is irrelevant because it is squared, so a reversing robot gets the same
 /// envelope as a forward one. [k] = s^2/m, so k*v^2 yields metres.
 inline double DSafe(double k, double d_min, double speed)
