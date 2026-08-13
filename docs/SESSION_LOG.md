@@ -1032,6 +1032,45 @@ was stopped by the arbiter and by nothing else. The gap was sized for this: at
    (restoring only on movement would never restore a robot that gives up on its
    goal), and it is why the grace exists as well as the movement radius.
 
+**A SECOND RUN OF THE SAME SCENARIO, and what it changed**
+(`results/phase7_yield_control.*`). Launched with `suppress_recovery:=false`
+intending a recovery A/B on the yield path. It is **not** one, and it produced
+something more useful instead:
+
+| | suppressed run | second run |
+|---|---|---|
+| conflicts predicted | 2 | **3** |
+| resolved locally, no escalation | 0 | **2** (opened by +0.03 m and +0.05 m) |
+| escalated | 2 | 1 (opened by −0.29 m) |
+| yields, held | 1.0 s, 15.2 s | 1.0 s |
+| both goals | SUCCEEDED | SUCCEEDED (amr1 37.9 s, amr2 20.3 s) |
+| recoveries during a hold | 0 | 0 |
+
+The second run is where the **"resolved without escalation" counter reads
+nonzero**, which is the local-first ordering as data rather than as a docstring:
+twice the predicted closest approach opened up and the arbiter stood down, once it
+did not and the arbiter took over. Both outcomes in one run, from one rule.
+
+**It does not demonstrate that suppression was NEEDED on the yield path**, and
+the report must not be read as if it did: its hold lasted 1.0 s against a 10 s
+allowance, so the progress checker was never going to fire — the same non-result
+Phase 2 recorded before Phase 3's barrier settled it. Necessity still rests on
+Phase 3's A/B.
+
+**The scenario is staged, and staged is not deterministic.** Two runs of an
+identical launch gave two escalations and one, and an earlier attempt (before the
+verdict change below) gave zero — in that one amr2 reached the gap first, no yield
+was needed, and amr1's goal ABORTED after 4 recovery behaviours. The barrier, the
+3.0 m gap and the 5.0 s dispatch offset stage the encounter; the simulator is
+under no obligation to stage it identically twice. That variability is worth
+stating in the README next to the yield numbers.
+
+**One report change came out of that zero-escalation run:** it printed
+`RESULT: FAIL` for behaving correctly. A run in which the local layer resolved
+everything is not a failed run, and an artifact in `results/` reading FAIL would
+be read as a broken yield protocol. The verdict now reports **NOT EXERCISED** when
+no conflict met the escalation test, with the reason spelled out.
+
 **Carries forward:**
 
 - **`with_traffic_control` defaults to true, so the fleet bringup now contains an
@@ -1040,10 +1079,12 @@ was stopped by the arbiter and by nothing else. The gap was sized for this: at
   layer did not open up, and neither run produced one - but a re-run of either is
   not automatically like-for-like. `with_traffic_control:=false` reproduces the
   old graph exactly.
-- The "resolved without escalation" counter read **0** in this run: only two
-  conflicts occurred and both were at the constriction. The counter is what makes
-  the local-first ordering checkable, and a run in open aisle would be where it
-  reads nonzero. Not run.
+- `docs/DEMO_RUNBOOK.md` covers all ten demos: exact commands per terminal, the
+  environment traps, RViz displays, what "working" looks like, the numbers to
+  quote from `results/`, and per-demo failure modes. Written so the screenshare
+  can be driven without debugging live. One measured wall-clock figure in it —
+  `phase7_yield` headless at 3 min 37 s — anchors the other durations, which are
+  estimates and are marked as such.
 - `conflict_radius` is derived from `amr_safety.safety_model`, which is a new
   package dependency for `amr_fleet_control` (acyclic: amr_safety depends on
   amr_description and amr_bsp only). It is what stops the arbiter's idea of "too

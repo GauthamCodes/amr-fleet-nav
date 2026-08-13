@@ -228,9 +228,33 @@ def _section_gate(node, add, thin):
 
 
 def _section_verdict(node, add, rule):
-    """Section E: the pass/fail checks."""
+    """Section E: the pass/fail checks, or a statement that there was nothing to check.
+
+    A run in which no conflict needed arbitration is NOT a failed run, and
+    printing FAIL on one would be a lie in the safest-looking direction: the
+    artifact would read as a broken yield protocol when what actually happened is
+    that the local layer opened the gap and this node correctly stood down. The
+    encounter is staged, and a simulator is not obliged to stage it identically
+    twice - so the report has to be able to say "not exercised".
+    """
     escalated = [c for c in node.conflicts_seen if c.outcome == "escalated"]
     add("[E] VERDICT")
+    if not escalated:
+        local = [c for c in node.conflicts_seen if c.outcome == "resolved locally"]
+        predicted = len(node.conflicts_seen)
+        add(f"    conflicts predicted:                      {predicted:8d}")
+        add(f"    resolved by the local layer:              {len(local):8d}")
+        add(f"    escalated:                                {0:8d}")
+        add("    RESULT: NOT EXERCISED")
+        add("")
+        add("        No conflict in this run met the escalation test, so there is no")
+        add("        yield to pass or fail on. This says the encounter did not")
+        add("        require central arbitration - which for a conflict the local")
+        add("        layer opened up is the CORRECT outcome (rule 7) - and it says")
+        add("        nothing about whether the protocol works. The run that")
+        add("        exercises it is the one with a yield in section B.")
+        add(rule)
+        return
     checks = [
         ("a conflict was predicted", bool(node.conflicts_seen)),
         ("a conflict was escalated to a yield", bool(escalated)),
