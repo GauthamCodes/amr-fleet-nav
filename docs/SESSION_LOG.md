@@ -766,3 +766,160 @@ updating rather than a free improvement, and it is recorded as one.
   twice the leak surface, and Phase 2 has already paid once for a leaked watchdog.
 
 ---
+
+## Phase 6 + 5 (merged) — The MAPF layer and the payload-adaptive chain — 2026-08-13
+
+Scoped by `docs/DELIVERY_PLAN_COMPRESSED.md`, Session B. Built in the order the
+requirements are worth rather than the order they are numbered:
+`FleetTrajectoryLayer` first, because it is the one an evaluator probes hardest
+and the one earlier phases left with nothing at all behind it. **Phase 7
+(`TrafficControlNode`) and the ramp A/B did NOT land** — see *Carries forward*.
+
+**Built:**
+- `amr_costmap_plugins`: `FleetTrajectoryLayer` (C++, pluginlib) — the package's
+  first real target. Deposits `max_cost·exp(-Δt/τ)` over a disc per predicted
+  peer pose, combined with `std::max` so it can raise a cell's cost and never
+  lower it. Plus `costmap_plugins.xml`, a library target and the pluginlib export.
+- `amr_fleet_control`: `trajectory_predict.py` and `trajectory_conflict.py`
+  (pure functions), `TrajectoryPredictor` (node), `TrajectoryProbe` (instrument).
+- `amr_motion`: `jerk_limiter.py` (pure), `PayloadJerkAdapter`, `payload_trace`.
+- `amr_safety`: `priority_mux.py` and `config/twist_mux.yaml`.
+- `amr_navigation`: the `velocity_smoother` block, `peer_trajectory_topics()`,
+  and two new render flags. `phase6_conflict` and `phase5_payload_trace` launches.
+
+**Verified:** `colcon build --symlink-install` 9 packages / 0 errors, `pytest`
+**223 passed** (171 pre-existing + 52 new), flake8 + black clean.
+
+**EXIT — one robot's trajectory becomes cost in another robot's LOCAL costmap**
+(`results/phase6_cost_injection_*`). Forced crossing, each robot's goal in the
+other's starting lane. Both arms run back to back on a verified-clean table:
+
+| | layer ON | layer OFF |
+|---|---|---|
+| samples, peer's predicted cell inside the window | 50 | 59 |
+| **samples with cost > 0** | **50 (100 %)** | **0 (0 %)** |
+| median cost at that cell | **145** | 0 |
+| max cost at that cell | 240 | 0 |
+| cost the decay model predicts | 125.9 | 127.3 |
+
+The probe samples where amr1 is predicted to be **2 s from now**, not where it
+is. That distinction is the measurement: amr1 is a physical object amr2's LiDAR
+marks and inflates regardless, so sampling the peer's current cell would measure
+the obstacle layer and report it as MAPF. The layer-off arm is what makes the
+layer-on number mean anything, and it reads 0 at the same cells in the same
+scenario.
+
+**The behavioural difference between the arms is NOT claimed.** amr1 drove
+8.30 m in 18.0 s with the layer and 9.03 m in 20.6 s without; closest approach
+1.610 m against 1.529 m. That is n=1 per arm, and an earlier layer-on run gave
+1.538 m — inside the same spread. The cost-injection measurement is the claim.
+
+**A limitation that belongs in the README, in this wording.**
+RegulatedPurePursuit is not a sampling optimiser. It consumes local costmap cost
+through cost-regulated velocity scaling and forward collision checking, so the
+layer changes how it *paces*, but it does not deviate laterally around graded
+cost the way MPPI's CostCritic would. PLAN.md §5's Phase 6 demo — "robots
+mutually deviate without central intervention" — is therefore **not**
+demonstrated, and no run in this repo should be read as showing it. What is
+demonstrated is the mechanism and the cost injection, measured against a control.
+
+**EXIT — payload-adaptive velocity and jerk** (`results/phase5_payload_trace.*`).
+A velocity STEP into the chain input, both robots, both payload states:
+
+| robot | payload | peak v cmd | peak a cmd | peak jerk cmd |
+|---|---|---|---|---|
+| amr1 | unloaded | 0.500 | 0.725 | 1.784 |
+| amr1 | loaded | 0.500 | 0.272 | 0.634 |
+| amr2 | unloaded | 0.500 | 1.112 | 4.722 |
+| amr2 | loaded | 0.500 | 0.940 | 2.742 |
+
+amr1's peak commanded acceleration falls **×0.38** loaded against amr2's ×0.85,
+because 60 kg on a 30 kg chassis is a far larger perturbation than 5 kg on 18 kg
+— and no code distinguishes them. Peak commanded velocity is exactly 0.500 in
+all four cases.
+
+**Read the jerk column honestly.** It exceeds the configured bound (1.000,
+0.333, 2.500, 1.957 m/s³ respectively) by up to ~1.9×. The bound holds on the
+limiter's own recursion — `tests/test_jerk_limiter.py` asserts it for every
+robot at both payload states — so what the column measures is the *published
+stream*: a 20 Hz signal timestamped on arrival, resampled onto a 50 ms grid and
+differentiated twice, plus a single-step transient where the velocity arrives at
+its target. What this run supports is the payload ratio and the absence of
+overshoot, not a certified jerk ceiling. Closing that gap means timestamping at
+the publisher, and it is not done.
+
+**Surprises — five, and three were in this session's own instruments:**
+
+1. **Stock `twist_mux` does not load in this ROS snapshot.**
+   `ros-jazzy-twist-mux` 4.5.0 (built 2026-06-15) resolves `diagnostic_updater`'s
+   `Updater(...)` ending `EEdh` — double, unsigned char. The installed
+   `ros-jazzy-diagnostic-updater` 4.2.6 (2026-04-12) exports `...EEd`. Two
+   packages from one apt snapshot, binary-incompatible with each other, and
+   nothing in this workspace can repair it. `amr_safety/scripts/priority_mux.py`
+   preserves the architecture — a priority mux between the motion chain and the
+   fail-closed gate — and reads the *same* `twist_mux.yaml` schema, so restoring
+   the stock node is a two-line launch change. Recorded rather than descoped.
+2. **`twist_mux` defaults to `TwistStamped`, and says so exactly once.** It logs
+   `"use_stamped" is not declared as parameter, defaulting to "true"`. Every
+   other link in this chain is plain `Twist`. Left undeclared, the mux would have
+   subscribed to a type nothing publishes: no error, no warning past that line,
+   and a robot that does not move. `enable_stamped_cmd_vel: false` is stated
+   explicitly on `velocity_smoother` for the same reason.
+3. **The velocity limiter overshot, and a unit test caught it before any run.**
+   Bounded jerk means acceleration cannot be removed instantly either, so a
+   clamp-only limiter sails past the commanded speed by `a²/(2j)` — 0.25 m/s at
+   a = 1.0, j = 2.0. This node is DOWNSTREAM of the stock smoother's velocity
+   clamp, so that overshoot would have reached the wheels while every other
+   component believed `max_vel_x` was being held.
+4. **The continuous-time S-curve is the wrong formula for a discrete loop.**
+   `sqrt(2j|e|)` is right in continuous time and leaves acceleration on the books
+   at arrival, which the velocity clamp then absorbs in a single step: measured
+   jerk spiked to **2.9–3.5× `jerk_max`** at the instant the command reached its
+   target — precisely the transient a jerk limiter exists to remove. The exact
+   discrete form, `-jΔt/2 + sqrt((jΔt/2)² + 2j|e|)`, brings the worst case to
+   ~1.1× on the recursion. Found by reproducing the simulator's number offline in
+   a 20-line script, which cost nothing and made the fix iterable.
+5. **A first hypothesis that was wrong, and saying so.** The inflated derivatives
+   were first attributed to transport jitter and "fixed" by resampling onto a
+   uniform grid. Re-running produced *identical* numbers, which is what proved
+   the hypothesis wrong and sent the search to the arrival transient. The
+   resampling is correct and was kept; it simply was not the cause. A fix that
+   changes nothing is evidence, and it was treated as such rather than assumed to
+   have worked.
+
+Also: `install(PROGRAMS)` cannot set the executable bit through a
+`--symlink-install` symlink, so a new script without `chmod +x` fails as
+"executable not found on the libexec directory".
+
+**Carries forward:**
+
+- **Phase 7, `TrafficControlNode`, is NOT built.** This is the one requirement on
+  Session B's list with no implementation. Its plumbing is in and measured:
+  `cmd_vel_yield` is a priority-150 input on every robot's mux, the release
+  semantics are timeout-based so an arbiter that dies releases rather than pins,
+  and `trajectory_conflict.py` — the conflict predicate the arbiter would use —
+  is written and unit-tested. What is missing is the node itself, its recovery
+  suppression on yield entry, and the forced-conflict evidence run.
+- **The ramp A/B is NOT run, but its blocking question is settled and cost
+  nothing.** Nav2 Jazzy's `KeepoutFilter::process()` combines with
+  `if (data > old_data || old_data == NO_INFORMATION)`, so graded mask cost IS
+  written onto unknown cells. The question carried forward from Phase 3+4 is
+  answered from the source rather than by measurement: the ramp does **not** need
+  surveying first. A two-route topology also already exists in the world — the
+  aisle is clear for |y| < 2.75 and the ramp occupies |y| ≤ 1.25 — so the A/B can
+  be a plan-only comparison of published global plans, with no driving at all.
+  Arm B needs the existing `with_static_obstacle` barrier split by a gap argument,
+  to block the flat lanes while leaving the ramp corridor open.
+- **Phase 1/2/3 evidence predates the motion chain** and was not re-run. Those
+  artifacts were measured on `cmd_vel_nav -> SafetyGate`; the chain now sits
+  between them. `with_motion_chain:=false` reproduces the old path exactly if a
+  like-for-like re-measurement is ever wanted.
+- The `phase6_crossing_*` reports come from `fleet_mission`, which now takes
+  `stem_prefix`, `title` and `separation_note`. All three default to the Phase 3
+  text, so Phase 3's own artifacts read exactly as they did.
+- `TrajectoryPredictor` died once during shutdown of a Phase 5 run (exit 1, after
+  the evidence had been written). Not diagnosed. It does not affect the Phase 5
+  artifacts, which the trace node writes itself, but it should not be left
+  unexamined before submission.
+
+---
