@@ -1,0 +1,91 @@
+# ============================================================================
+# fleet_map.yaml - the fleet map's geometry and its selective update policy.
+#
+# FleetMapNode is fleet-wide and runs UNNAMESPACED: there is one fleet map, not
+# one per robot, so this file has no robot in it. Per-robot facts - where each
+# one spawned, and therefore where its map sits in the fleet frame - come from
+# fleet.yaml through amr_description.fleet_config, never from here.
+#
+# UNITS
+#   x_*, y_*, margin, resolution   metres
+#   *_s                            seconds
+#   *_scale_cells                  cells
+# ============================================================================
+
+fleet_map_node:
+  ros__parameters:
+
+    use_sim_time: true
+
+    # ------------------------------------------------------------------------
+    # Grid geometry
+    #
+    # FIXED, and allocated once. Nav2's Costmap2DROS declares its own width,
+    # height and origin, defaulting to 5 x 5 m at the origin; both robots spawn
+    # near (-11, +/-1.5), outside it. A global costmap that instead sized itself
+    # from whatever SLAM had explored so far would start out too small ("Start
+    # Coordinates of() was outside bounds"), and would then resize every time
+    # either robot found a new corridor - and every resize wipes the global
+    # obstacle layer.
+    #
+    # The extent mirrors config/world.yaml: the lower plateau spans x [-14, 2.4]
+    # and the upper plateau x [6, 18], both over y [-9, 9]. That duplication is
+    # pinned by tests/test_fleet_frames.py, which renders the world and asserts
+    # this extent still contains every static box in it - so changing the world
+    # without changing this file fails a test rather than silently truncating
+    # the map.
+    # ------------------------------------------------------------------------
+    resolution: 0.05
+    x_min: -14.0
+    x_max: 18.0
+    y_min: -9.0
+    y_max: 9.0
+    margin: 1.0
+
+    # Recomposite at most this often. slam_toolbox republishes every 2.0 s
+    # (slam_params.yaml map_update_interval), so this is not the binding
+    # constraint; it exists so that two robots accepting in the same instant
+    # produce one composite rather than two.
+    publish_period_s: 1.0
+
+    # Stem for the accept/defer evidence files. Empty disables the report, which
+    # is the right default for an ordinary bringup - only the evidence run wants
+    # to write to results/.
+    decision_log: ""
+
+    # ------------------------------------------------------------------------
+    # Selective update policy
+    #
+    #   score = w_frontier*frontier + w_change*change
+    #         + w_recency*recency  - w_revisit*revisit
+    #
+    # Each term is normalised to [0, 1] by its scale below, so the weights are
+    # comparable to one another and accept_threshold means something.
+    #
+    # THE VETO INVARIANT: each positive weight must exceed
+    # w_revisit + accept_threshold, so that a saturated frontier push, a
+    # saturated occupancy change, or a fully aged deferral each earns a merge on
+    # its own even under the maximum revisit penalty. The first weights tried
+    # here violated it for w_change, which meant a new obstacle on a
+    # much-travelled corridor was deferred - the exact failure a visit-count-only
+    # policy has. tests/test_selective_policy.py asserts the invariant directly.
+    # ------------------------------------------------------------------------
+    policy.w_frontier: 1.2
+    policy.w_change: 1.2
+    policy.w_recency: 1.0
+    policy.w_revisit: 0.6
+
+    # 400 cells at 0.05 m is 1 m^2 of newly explored floor.
+    policy.frontier_scale_cells: 400.0
+    # Lower, deliberately: an obstacle appearing is a smaller number of cells
+    # than a corridor opening, and it matters more.
+    policy.change_scale_cells: 120.0
+
+    # How long a robot may go without an accepted merge before recency alone
+    # earns one. Bounds how stale the fleet map can get.
+    policy.recency_horizon_s: 20.0
+
+    # Merge count at which a region is considered fully "already known".
+    policy.revisit_scale: 6.0
+
+    policy.accept_threshold: 0.35

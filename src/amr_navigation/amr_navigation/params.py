@@ -34,6 +34,7 @@ import yaml
 
 from amr_bsp.topics import VALIDATED_SCAN
 from amr_description.fleet_config import footprint_polygon, frame_prefix
+from amr_fleet_control.fleet_grid import FLEET_FRAME, FLEET_MAP_TOPIC
 
 #: Topic the navigation stack reads scans from, relative to the robot namespace.
 #: Nothing in the stack subscribes to the raw sensor (docs/ENGINEERING_NOTES.md rule 8).
@@ -73,9 +74,25 @@ def _substitutions(robot, scan_topic):
         "__ODOM_FRAME__": f["odom"],
         "__BASE_FRAME__": f["base"],
         "__SCAN_TOPIC__": scan_topic,
-        # Absolute: this is the topic slam.launch.py remaps slam_toolbox's
-        # namespace-escaping /map onto. See that file's docstring.
-        "__MAP_TOPIC__": f"/{robot['name']}/map",
+        # __MAP_TOPIC__ (/amrN/map) was here until Phase 3 and is gone rather than
+        # left unused: the global costmap's static layer no longer reads a robot's
+        # private SLAM map. That map is now an INPUT to FleetMapNode, which
+        # subscribes to it directly by name. A substitution nothing substitutes into
+        # is a claim about the config that is no longer true.
+        # PHASE 3: THREE DISTINCT FRAMES, WHICH IS WHY THESE ARE SEPARATE
+        # PLACEHOLDERS RATHER THAN A REPOINTED __MAP_FRAME__.
+        #
+        # The local costmap runs in amrN/odom, slam_toolbox owns amrN/map, and from
+        # Phase 3 the GLOBAL costmap, bt_navigator and behavior_server all run in the
+        # fleet frame. __MAP_FRAME__ feeds both slam_params.yaml and those three Nav2
+        # consumers, so repointing it would have moved slam_toolbox's own map frame
+        # to fleet_map and collapsed the very distinction the module docstring above
+        # says RewrittenYaml could not express.
+        #
+        # Imported from amr_fleet_control, not restated: FleetMapNode publishes this
+        # frame and this topic, and the costmaps consume them.
+        "__GLOBAL_FRAME__": FLEET_FRAME,
+        "__GLOBAL_MAP_TOPIC__": FLEET_MAP_TOPIC,
         "__FOOTPRINT__": str(footprint_polygon(robot)),
         # Kinodynamic limits, identical to what the Gazebo DiffDrive plugin enforces.
         # A planner that models limits the plant will not deliver produces tracking

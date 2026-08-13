@@ -22,8 +22,17 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
+  <!-- FleetMapNode reports its accept/defer counters the same way SafetyGate and
+       SensorBSP report theirs. Already in the ROS base install and already a
+       declared dependency of amr_bsp; declared here so this package's manifest is
+       honest about what it imports rather than relying on a sibling to pull it in. -->
+  <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>amr_description</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

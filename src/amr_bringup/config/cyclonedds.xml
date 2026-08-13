@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS tuning for a multi-robot graph.
+
+  WHAT THIS FIXES
+
+    Every ROS 2 node is a DDS participant, and CycloneDDS assigns each one an
+    index within the domain. The default MaxAutoParticipantIndex is 9, so the
+    tenth participant onwards has to find a free slot and, past the limit, simply
+    cannot:
+
+      [controller_server] Failed to find a free participant index for domain 0
+      [rmw_cyclonedds_cpp] rmw_create_node: failed to create domain, error Error
+      terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+        what():  failed to initialize rcl node
+
+    One robot fits under the default. Two do not: two Nav2 stacks are 14 nodes on
+    their own, and with two slam_toolbox, two SensorBSP, two SafetyGates, the
+    plant nodes and static transform publishers per robot, plus the fleet map and
+    the costmap filter servers, the graph is around forty participants.
+
+    The failure is loud but misleading. It is thrown by whichever nodes happen to
+    start last, so it reads as "the second robot's Nav2 is broken" rather than
+    "the host ran out of participant indices" - and the first robot comes up
+    perfectly, which makes it look like a namespacing bug.
+
+  WHY 120
+
+    Room for roughly ten robots' worth of stack, matching the assignment's
+    "scale to 10+ robots" requirement, so that scaling the fleet stays an edit to
+    fleet.yaml rather than a second environment problem to rediscover.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <Discovery>
+      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

@@ -309,9 +309,25 @@ class NavGoalRun(Node):
         self.speed = math.hypot(v.x, v.y)
 
     def _on_plan(self, msg):
-        points = [
-            self.map_to_world(p.pose.position.x, p.pose.position.y) for p in msg.poses
-        ]
+        # /plan arrives in the GLOBAL COSTMAP's frame, and Phase 3 moved that from
+        # this robot's amrN/map to the fleet frame - which coincides with the world
+        # frame. So the spawn-offset conversion is right for one and a double count
+        # for the other, and the frame_id is the only thing that says which.
+        #
+        # Worth branching rather than assuming, because the failure is quiet: every
+        # DERIVED metric here is translation-invariant, so path length, deviation and
+        # the replan count all stay correct while the plan CSV and every plot drawn
+        # from it move by the spawn pose. Measured before this branch existed: a plan
+        # that starts at the robot's true (-11.00, -1.50) was written as
+        # (-22.00, -3.00), which puts the route through a rack while the numbers
+        # beside it still read fine.
+        if msg.header.frame_id in ("", self.map_frame):
+            points = [
+                self.map_to_world(p.pose.position.x, p.pose.position.y)
+                for p in msg.poses
+            ]
+        else:
+            points = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
         if not points:
             return
         entry = {

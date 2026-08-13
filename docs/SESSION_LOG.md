@@ -482,3 +482,287 @@ produce because they clear the sector in under a second. Carried forward.
   The interlock is held in reserve, not leaned on — pinned by `tests/test_safety_distance.py`.
 
 ---
+
+## Phase 3 + 4 (merged) — Cooperative mapping and the fleet frame — 2026-08-13
+
+Scoped by `docs/DELIVERY_PLAN_COMPRESSED.md`, Session A. The ramp A/B moves to
+Session B by decision, not by overrun: a genuine "flat route available versus
+blocked" needs the reserved second ramp built and a fresh two-route survey. What
+ships here instead is the ramp filter **plumbing**, wired and measured at zero cost,
+so Session B authors only the mask, the ramp and the runs.
+
+**Built:**
+- **Bringup split into three.** `amr_gazebo.spawn.world_actions` owns the world
+  singletons (rendered SDF, `gz sim`, `/clock` bridge); `robot_stack.launch.py` owns
+  one robot's BSP → SLAM → Nav2 → SafetyGate with a `stagger` offset;
+  `fleet_nav.launch.py` loops over `load_fleet()`. `amr1_nav.launch.py` is now a thin
+  wrapper over the same two pieces and is still strictly single-robot.
+- `amr_fleet_control`: `fleet_grid.py` (grid geometry and the merge rule, pure
+  functions), `selective_policy.py` (the scored accept/defer rule, pure functions),
+  `fleet_map_node.py` (the node), `fleet_mission.py` (concurrent goals).
+- `amr_navigation`: `ramp_mask.py` generates the filter mask at launch time;
+  `costmap_filters.launch.py` brings up the fleet-wide `map_server` +
+  `costmap_filter_info_server` + their own lifecycle manager.
+- `scripts/clean_processes.sh` — kills the simulation and ROS graph, then **prints
+  the surviving process table** and exits non-zero if anything survived.
+- `warehouse.sdf.xacro` gains an optional static barrier (`with_static_obstacle`,
+  default off, so no earlier run's world changed).
+- Two Phase 1/2 consumers corrected for the new plan frame: `nav_goal_run._on_plan`
+  branches on `header.frame_id` instead of always applying the spawn offset, and
+  `map_report` gained `--world-frame`. `safety_run` gained a `title` parameter so the
+  barrier A/B is not filed under "pedestrian encounter"; its default is unchanged, so
+  Phase 2's own artifacts still read as they did.
+- `ws.sh` merges a CycloneDDS config that raises the participant-index ceiling, and
+  `src/amr_bringup/config/cyclonedds.xml` documents why.
+
+**Verified:** `colcon build --symlink-install` 9 packages / 0 errors, `pytest`
+**171 passed** (110 pre-existing + 61 new), flake8 + black clean.
+
+**EXIT — two robots, one graph.** 53 nodes: two Nav2 stacks, two `slam_toolbox`, two
+SensorBSP, two SafetyGates, the plant per robot, and the fleet-wide map and filter
+servers. No node-name collision, no topic collision. Every lifecycle node reached
+`active`, including both filter servers. Every per-robot difference still comes from
+`fleet.yaml`; there is no `if robot ==` anywhere.
+
+**EXIT — the fleet map drives planning, and the wiring is checkable.**
+
+| | |
+|---|---|
+| `/fleet_map` publisher QoS | RELIABLE · TRANSIENT_LOCAL · KEEP_LAST(1) |
+| subscribers matched | **2** — `/amr1/global_costmap` and `/amr2/global_costmap` |
+| grid | 680 × 400 cells at 0.05 m, origin (−15.0, −10.0) |
+| `fleet_map → amr1/map` | (−11.000, −1.500, 0.000) |
+| `fleet_map → amr2/map` | (−11.000, +1.500, 0.000) |
+| both global costmaps | `global_frame: fleet_map`, 34 × 20 m, `filters: ['ramp_filter']` |
+| both local costmaps | still `amrN/odom` |
+| `slam_toolbox` | still owns `amrN/map` |
+
+Three distinct frames per robot, which is exactly what a `RewrittenYaml` key rewrite
+could not have expressed — hence the new `__GLOBAL_FRAME__` placeholder rather than
+repointing `__MAP_FRAME__`.
+
+**EXIT — selective update policy** (`results/phase3_selective_updates.*`), measured
+during the concurrent-goal run so both robots were actually exploring:
+
+| | |
+|---|---|
+| candidates scored | 41 |
+| accepted (merged and published) | 23 |
+| **deferred** | **18 — 43.9 %** |
+| per robot | amr1 13/8 (38.1 % deferred), amr2 10/10 (50.0 %) |
+| composites performed | 17 |
+| mean composite + publish | 0.55 ms |
+| fleet map at end | 15.6 % known, 1 984 occupied cells |
+
+The deferred **share** is the honest headline. The milliseconds saved are small and
+the report says why rather than letting the number oversell: compositing is numpy
+slice arithmetic on a fixed grid and was never the expensive part. What deferral
+actually bounds is how often a 680 × 400 grid is serialised to two global costmaps
+that each reprocess it — work that happens inside the Nav2 processes and is not
+measured here.
+
+**EXIT — concurrent goals to both robots** (`results/phase3_concurrent_goals.*`).
+Dispatched in the same pass, not staggered:
+
+| | amr1 | amr2 |
+|---|---|---|
+| result | **SUCCEEDED** | **SUCCEEDED** |
+| time to goal | 18.8 s | 11.3 s |
+| planned / driven (ground truth) | 10.50 / 10.44 m | 10.50 / 10.46 m |
+| final position error | 0.062 m | 0.042 m |
+| replans (route actually changed) | 0 | 0 |
+
+Closest approach 3.000 m over 2 180 samples, median 3.471 m. amr2 is the faster
+chassis by configuration (`max_vel_x` 1.00 against 0.60) and arrives first, from the
+same YAML that shapes its URDF. The routes are deconflicted by design — the forced
+conflict, mutual local deviation and the yield protocol are Phases 6 and 7.
+
+**EXIT — ramp filter plumbing, contributing provably nothing.** The KeepoutFilter
+loads into both global costmaps through the `filters:` list and both costmaps
+activate with it:
+
+| | amr1 | amr2 |
+|---|---|---|
+| known cells | 272 000 | 272 000 |
+| free cells (cost 0) | 248 036 | 249 230 |
+| costed cells (cost > 0) | 23 964 | 22 770 |
+| **minimum cost over known cells** | **0** | **0** |
+
+The measurement that settles it is the minimum, not the ramp region. The first
+attempt tested "cost inside the ramp footprint is zero" and it was circular twice
+over: most of that region is unexplored, and the part the LiDAR does reach contains
+the real plateau face, which reads LETHAL from the static layer whatever the filter
+does — it reported `ramp max = 100` and failed its own check. Because the Phase 3
+mask is **uniform**, a filter adding cost would raise every cell together and no cell
+could read 0. That one number distinguishes "loaded and contributing nothing" from
+both "never loaded" and "silently costing the whole warehouse".
+
+**EXIT — the Phase 2 carry-over: recovery suppression, finally proven NECESSARY**
+(`results/phase2_recovery_ab_{suppressed,control}.*`). Phase 2 could only show the
+mechanism *operates*; its longest halt was 0.80 s against a 10 s allowance, so the
+progress checker was never going to fire and the control run's zero proved nothing.
+That was recorded honestly and carried forward. The blocker was the obstacle: walking
+pedestrians clear the forward sector in under a second.
+
+An immovable barrier spanning the full 5.5 m aisle fixes it. The gate zeroes the
+entire twist while blocked, so the robot cannot rotate away, clearance cannot grow,
+and the latch does not release on its own:
+
+| | suppressed | control (`suppress_recovery:=false`) |
+|---|---|---|
+| halts | 4 | 8 |
+| **longest halt held** | **56.69 s** | **10.00 s** |
+| every halt after the approach | one continuous hold | capped at 9.4–10.0 s each |
+| `movement_time_allowance` read back | 1 000 000 s at every transition | 10 s at every transition |
+| `controller_server: Failed to make progress` | **0** | **6** |
+| recovery behaviours, whole run | **0** | **2** |
+| **recovery behaviours fired DURING a halt** | **0** | **2** (Spin ×1, Wait ×1) |
+| commands leaked past the latch | 0 | 0 |
+
+That is the necessity result. With the allowance left at its default, Nav2 declares
+the robot stuck **while the safety gate is deliberately holding it**, breaks the halt
+roughly every ten seconds, and dispatches recovery behaviours into a robot that must
+not move — the exact failure docs/ENGINEERING_NOTES.md rule 2 exists to prevent, now measured rather
+than asserted. Run twice; the second run reproduced it (62.99 s versus 8.50 s on the
+first, same structure).
+
+Note which number is the discriminator. It is NOT the raw recovery count: in the
+control arm the progress-checker failure and the halt release happen at the same
+instant, so a recovery can land just outside the attributed window. The robust
+signals are the halt DURATION (one 56.69 s hold versus eight ~10 s fragments) and the
+six `Failed to make progress` errors, which appear only in the control arm.
+
+**A limitation this run makes visible, and which belongs in the README.** A full-twist
+hold against an obstacle that never moves is a deadlock: the robot has no legal action
+that could increase its clearance, so the goal ends in TIMEOUT in both arms. That is
+the correct behaviour for a fail-closed gate and it is also why "allow in-place
+rotation under a hold" is already flagged as a Phase 7 refinement. This run is the
+evidence for why that refinement is worth doing.
+
+**REGRESSION — Phase 1 still behaves the same after the re-frame**
+(`results/phase1_nav_regression.*`). The whole point of checking: both global costmaps
+moved into a new frame and the bringup was restructured underneath three existing
+evidence launches. Same goal, same world, actors off:
+
+| | Phase 1 baseline | after Phase 3 |
+|---|---|---|
+| goal result | SUCCEEDED | **SUCCEEDED** |
+| time to goal | 20.5 s | **20.4 s** |
+| planned path (first plan) | 11.16 m | 11.13 m |
+| executed path (ground truth) | 11.01 m | **11.00 m** |
+| executed / planned | 0.99 | 0.99 |
+| final position error | 0.079 m | 0.065 m |
+| recovery behaviours | 0 | 0 |
+| **replans (route actually changed)** | **5** | **1** |
+
+Everything matches except the replan count, and that difference is not noise worth
+waving away. The global costmap's static layer now reads the fleet map, which is
+republished at most once a second and only when the selective policy accepts an
+update — where it previously read slam_toolbox's raw stream directly. Fewer changes to
+the static layer means fewer recomputed routes. Less plan churn for the same executed
+path is a reasonable outcome, but it is a behavioural consequence of selective
+updating rather than a free improvement, and it is recorded as one.
+
+**Surprises — five, and two of them were nearly written down as code defects:**
+
+1. **A second robot exhausts CycloneDDS's participant indices, and the error blames
+   the wrong thing.** Every ROS 2 node is a DDS participant and the default
+   `MaxAutoParticipantIndex` is 9. One robot fits; two do not — this graph is 53
+   nodes. Past the limit, node creation throws:
+
+   ```
+   [controller_server] Failed to find a free participant index for domain 0
+   [rmw_cyclonedds_cpp] rmw_create_node: failed to create domain, error Error
+   terminate called after throwing an instance of 'rclcpp::exceptions::RCLError'
+   ```
+
+   Six of amr2's Nav2 servers died this way while amr1 came up perfectly, which reads
+   exactly like a namespacing bug in the second robot's stack. It is a host-wide
+   limit and has nothing to do with namespaces. `src/amr_bringup/config/cyclonedds.xml`
+   raises it to 120 — room for ten robots, so the assignment's scaling requirement
+   does not become a second environment problem to rediscover.
+
+2. **The obvious way to apply that fix does nothing at all.** This environment already
+   exports a `CYCLONEDDS_URI` — an inline fragment pinning discovery to the loopback
+   interface. Writing `export CYCLONEDDS_URI="${CYCLONEDDS_URI:-file://...}"` looks
+   correct, reads correctly, and is a no-op, because the variable is already set. The
+   inverse (plain assignment) would have silently dropped the interface pinning
+   instead. CycloneDDS merges a comma-separated list of URIs, so `ws.sh` APPENDS. Both
+   failure modes are silent; only the merged form is right.
+
+3. **The first weights for the selective policy re-created the bug the policy exists
+   to prevent, and a test caught it.** With `w_change 0.8` against `w_revisit 0.6` and
+   a 0.35 threshold, a NEW OBSTACLE appearing on a corridor the robot had already
+   driven six times scored 0.20 and was deferred — which is precisely the failure a
+   visit-count-only policy has, reintroduced through a weight choice. The fix is an
+   invariant rather than a retune: every positive weight must exceed
+   `w_revisit + accept_threshold`, so a saturated frontier push, a saturated occupancy
+   change or a fully aged deferral each earns a merge on its own even under the
+   maximum penalty. `tests/test_selective_policy.py` asserts it directly, so a later
+   retune that breaks it fails a test instead of quietly dropping obstacle updates.
+
+4. **Moving the plan's frame silently corrupted a Phase 1 artifact while leaving
+   every number in it correct.** `/plan` is published in the global costmap's frame,
+   so it changed from `amr1/map` to `fleet_map` — and `nav_goal_run._on_plan` was
+   still applying the spawn-pose conversion on top. The regression run's plan CSV
+   starts at **(−22.00, −3.00)** where the robot truly starts at (−11.00, −1.50):
+   the offset applied twice, putting the drawn route through a rack.
+
+   What makes this worth recording is that it does not look like a failure. Every
+   derived metric is translation-invariant, so path length, deviation and the replan
+   count all remained correct and the report beside the corrupted CSV read perfectly
+   fine. bt_navigator also transforms incoming goals into its own frame, so goal
+   DISPATCH kept working untouched — the break is entirely on the read-back side.
+   `_on_plan` now branches on `msg.header.frame_id`, and `map_report` gained a
+   `--world-frame` flag so a saved fleet map is not scored against geometry 11 m away
+   for the same reason.
+
+5. **The obvious test of "the null mask adds no cost" is circular, and it failed its
+   own check.** Measuring cost inside the ramp footprint reported `ramp max = 100` and
+   a FAIL — not because the filter was writing cost, but because most of that region
+   is unexplored and the part the LiDAR reaches contains the real plateau face, which
+   reads LETHAL from the static layer whatever the filter does. Worse, the unexplored
+   remainder reads unknown, which would make a filter that never loaded look identical
+   to one contributing nothing. The measurement that decides it exploits the mask being
+   uniform: the minimum cost over all known cells. It is 0.
+
+**Carries forward:**
+
+- **Session B owns the ramp A/B**, and it needs three things this session did not
+  build: the second ramp (its footprint is still reserved and commented in
+  `world.yaml`), a survey covering both routes, and a graded mask. The plumbing is
+  done and measured — `costmap_filters.launch.py`, the `filters:` key in both global
+  costmaps, and `ramp_mask.write_mask`, which already takes regions and a value.
+- **Measure this before building the A/B on it, do not assume it.** With
+  `track_unknown_space: true` and NavFn's `allow_unknown: true`, unknown cells are
+  already expensive. Whether a graded KeepoutFilter cost survives onto
+  `NO_INFORMATION` cells lives in `keepout_filter.cpp`, which is not installed here.
+  Ten minutes with `ros2 topic echo /amr1/global_costmap/costmap` over a known ramp
+  cell settles it; an afternoon in the planner if skipped. If it does not survive, the
+  ramp must be surveyed before the A/B, which is another argument for doing the survey
+  first anyway.
+- Mask values must stay **at or below 90**. 100 becomes cost 254 (LETHAL) and 253 is
+  already `INSCRIBED_INFLATED_OBSTACLE`, which the footprint collision checkers treat
+  as a collision. An expensive ramp is not an impassable one. `ramp_mask.mask_pixel`
+  raises rather than clipping.
+- The mask YAML needs `mode: scale` and a pure white background. The default `trinary`
+  collapses the whole grey range to unknown, and map_saver's 205 for unknown would
+  cost the entire warehouse about 48. Both are generated, not hand-written, for this
+  reason.
+- **The inter-map transform is fixed and uncorrected**, per the compressed plan's cut.
+  If Session C revisits it: rclpy's `StaticTransformBroadcaster` is APPEND-ONLY — it
+  skips a `child_frame_id` it has already sent, unlike the C++ one, so republishing a
+  corrected transform through it silently does nothing. A raw TRANSIENT_LOCAL publisher
+  on `/tf_static` resending the whole set is the way round it.
+- `composites (17) < accepted (23)` in the selective-update report is not a bug: the
+  publish tick coalesces accepts that land inside the same second, so two robots
+  accepting together produce one composite.
+- `amr1_nav.launch.py` must stay single-robot and must NOT delegate to
+  `fleet_nav.launch.py`. `phase1_survey`, `phase1_nav_run` and `phase2_safety_run`
+  include it by filename, and turning it into a two-robot launch would silently double
+  the graph load under every Phase 1 and Phase 2 evidence run.
+- `scripts/clean_processes.sh` prints the surviving process table and exits non-zero if
+  anything is left. Run it before any measurement worth keeping — twice the robots is
+  twice the leak surface, and Phase 2 has already paid once for a leaked watchdog.
+
+---

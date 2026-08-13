@@ -125,6 +125,13 @@ def main():
     parser.add_argument("--map", required=True, help="map stem, without extension")
     parser.add_argument("--world", default="", help="rendered world SDF")
     parser.add_argument("--robot", default="amr1")
+    parser.add_argument(
+        "--world-frame",
+        action="store_true",
+        help="The map is already in world coordinates - use for a saved /fleet_map. "
+        "Without it the robot's spawn offset is applied and a fleet map is scored "
+        "against geometry 11 m away.",
+    )
     parser.add_argument("--out", default="", help="PNG to write")
     parser.add_argument("--report", default="", help="markdown report to write")
     parser.add_argument("--title", default="")
@@ -146,18 +153,28 @@ def main():
         float(meta.get("free_thresh", 0.25)),
     )
 
-    # The map frame is anchored on the robot's spawn pose, so the saved origin is
-    # in map coordinates and has to be shifted into world coordinates before any
-    # comparison with the world file. amr1 spawns with yaw 0; a rotated spawn would
-    # need the full transform here and this asserts rather than silently skewing.
-    robot = {r["name"]: r for r in load_fleet()}[args.robot]
-    sx, sy, _, syaw = spawn_pose(robot)
-    if abs(syaw) > 1e-9:
-        raise NotImplementedError(
-            f"{args.robot} spawns at yaw {syaw}; map_report assumes an axis-aligned "
-            "spawn so that map and world axes coincide"
-        )
-    origin_world = (meta["origin"][0] + sx, meta["origin"][1] + sy)
+    # A per-robot slam_toolbox map is anchored on that robot's spawn pose, so the
+    # saved origin is in map coordinates and has to be shifted into world coordinates
+    # before any comparison with the world file. amr1 spawns with yaw 0; a rotated
+    # spawn would need the full transform here and this asserts rather than silently
+    # skewing.
+    #
+    # The FLEET map is different: FleetMapNode publishes it in the fleet frame, which
+    # is defined to coincide with the world origin, so it needs no shift at all.
+    # Applying one anyway would score the map against geometry 11 m away and report a
+    # plausible-looking accuracy figure for it - which is why this is a flag rather
+    # than something inferred from the filename.
+    if args.world_frame:
+        origin_world = (meta["origin"][0], meta["origin"][1])
+    else:
+        robot = {r["name"]: r for r in load_fleet()}[args.robot]
+        sx, sy, _, syaw = spawn_pose(robot)
+        if abs(syaw) > 1e-9:
+            raise NotImplementedError(
+                f"{args.robot} spawns at yaw {syaw}; map_report assumes an "
+                "axis-aligned spawn so that map and world axes coincide"
+            )
+        origin_world = (meta["origin"][0] + sx, meta["origin"][1] + sy)
 
     world_sdf = args.world or os.path.join(
         os.environ.get("AMR_GENERATED_DIR", "/tmp/amr_fleet_nav_generated"),

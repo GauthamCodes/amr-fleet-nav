@@ -24,4 +24,17 @@ fi
 # Gazebo must find this workspace's worlds and models.
 export GZ_SIM_RESOURCE_PATH="${WS_DIR}/src/amr_gazebo/worlds:${WS_DIR}/src/amr_gazebo/models:${GZ_SIM_RESOURCE_PATH:-}"
 
+# A two-robot graph is roughly forty DDS participants and CycloneDDS defaults to a
+# maximum auto-assigned participant index of 9. Past that, node creation throws and
+# whichever Nav2 servers happened to start last die - which reads as "the second
+# robot is broken" rather than as a host-wide limit. See the config for the full
+# symptom.
+#
+# APPENDED, NOT ASSIGNED. CycloneDDS takes a comma-separated list of URIs and merges
+# them, and this environment already sets one - an inline fragment pinning discovery
+# to the loopback interface. Writing this as a `${VAR:-default}` fallback looked
+# right and did nothing at all, because the variable was already set; overwriting it
+# would have silently dropped the interface pinning instead.
+export CYCLONEDDS_URI="${CYCLONEDDS_URI:+${CYCLONEDDS_URI},}file://${WS_DIR}/src/amr_bringup/config/cyclonedds.xml"
+
 exec "$@"

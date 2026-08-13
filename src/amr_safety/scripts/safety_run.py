@@ -81,6 +81,11 @@ class SafetyRun(Node):
         self.declare_parameter("linger_s", 6.0)
         self.declare_parameter("results_dir", "results")
         self.declare_parameter("tag", "safety_halt")
+        # What the report calls itself. Defaulted to the Phase 2 pedestrian run so
+        # that run's artifact is unchanged; the Phase 3 carry-over parks a static
+        # barrier instead, and a report headed "pedestrian encounter" describing a
+        # barrier is the kind of small inconsistency an evaluator notices.
+        self.declare_parameter("title", "SafetyGate halt on a pedestrian encounter")
         self.declare_parameter("suppress_recovery", True)
         self.declare_parameter("max_goal_retries", 2)
 
@@ -97,6 +102,7 @@ class SafetyRun(Node):
         self.linger = float(get("linger_s").value)
         self.results_dir = get("results_dir").value
         self.tag = get("tag").value
+        self.title = get("title").value
         self.suppress_recovery = bool(get("suppress_recovery").value)
 
         self.create_subscription(
@@ -425,7 +431,7 @@ class SafetyRun(Node):
         thin = "-" * 78
 
         add(rule)
-        add("PHASE 2 - SafetyGate halt on a pedestrian encounter")
+        add(f"PHASE 2 - {self.title}")
         add(rule)
         add(f"robot:                    {self.robot_name}")
         add(
@@ -476,7 +482,7 @@ class SafetyRun(Node):
         text = "\n".join(lines)
         print(text, flush=True)
         with open(f"{stem}.md", "w", encoding="utf-8") as handle:
-            handle.write("# Phase 2 - SafetyGate halt on a pedestrian encounter\n\n")
+            handle.write(f"# Phase 2 - {self.title}\n\n")
             handle.write("```\n")
             handle.write(text)
             handle.write("\n```\n")

@@ -1,5 +1,7 @@
 """Build configuration for the amr_fleet_control package."""
 
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = "amr_fleet_control"
@@ -11,6 +13,10 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
+        # setuptools evaluates these globs at build time and colcon re-runs the build
+        # whenever a file changes, so a new launch or config file is picked up.
+        ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
+        ("share/" + package_name + "/config", glob("config/*.yaml")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -20,8 +26,11 @@ setup(
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
-        # FleetMapNode, TrajectoryPredictor and TrafficControlNode are registered
-        # here in Phases 3, 6 and 7 respectively.
-        "console_scripts": [],
+        # TrajectoryPredictor and TrafficControlNode are registered here in
+        # Phases 6 and 7 respectively.
+        "console_scripts": [
+            "fleet_map_node = amr_fleet_control.fleet_map_node:main",
+            "fleet_mission = amr_fleet_control.fleet_mission:main",
+        ],
     },
 )

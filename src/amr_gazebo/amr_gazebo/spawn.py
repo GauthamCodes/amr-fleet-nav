@@ -13,6 +13,7 @@ from launch_ros.actions import Node
 import xacro
 
 from amr_description.fleet_config import frame_prefix, spawn_pose, xacro_mappings
+from amr_gazebo.world_builder import render_world, world_name_of
 
 
 def gz_sensor_frame(robot, sensor_name):
@@ -261,4 +262,46 @@ def gz_server(world_sdf_path, headless=True):
     return ExecuteProcess(
         cmd=["gz", "sim", *args, world_sdf_path],
         output="screen",
+    )
+
+
+def world_actions(mappings=None, headless=True, out_name="warehouse_nav.sdf"):
+    """Return the world-singleton actions, plus the rendered world's name and path.
+
+    These are the actions there must be exactly ONE of however many robots a launch
+    brings up: the rendered SDF, the Gazebo server, and the /clock bridge. Phase 3
+    needed a two-robot launch, and the obvious way to get one - having the fleet
+    launch include the single-robot launch twice - starts two Gazebo servers and two
+    identically named clock bridges.
+
+    The inverse mistake is worse and is the reason this helper exists rather than a
+    launch file: if the SINGLE-robot launch delegated to the fleet launch, then
+    phase1_survey, phase1_nav_run and phase2_safety_run - which include it by name -
+    would each silently become two-robot runs. Their recorded numbers are sensitive
+    to graph contention (SESSION_LOG Phase 2, surprise 1), so that would not fail,
+    it would just quietly move the measurements.
+
+    Both launches call this instead, and neither includes the other.
+
+    Args:
+        mappings: xacro arguments for warehouse.sdf.xacro; values are stringified.
+        headless: Run Gazebo without its GUI.
+        out_name: Filename for the rendered SDF, unique per launch so that two
+            concurrent launches do not overwrite each other's world.
+
+    Returns:
+        ``(actions, world_name, world_sdf_path)``.
+    """
+    world_sdf = render_world(
+        os.path.join(
+            get_package_share_directory("amr_gazebo"), "worlds", "warehouse.sdf.xacro"
+        ),
+        mappings=mappings or {},
+        out_name=out_name,
+    )
+    world_name = world_name_of(world_sdf)
+    return (
+        [gz_server(world_sdf, headless=headless), clock_bridge()],
+        world_name,
+        world_sdf,
     )

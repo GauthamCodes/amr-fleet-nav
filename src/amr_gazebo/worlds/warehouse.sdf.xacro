@@ -27,6 +27,21 @@
        wandering into the forward scan during that run would be indistinguishable
        from the effect being measured, so actors can be switched off. -->
   <xacro:arg name="with_actors" default="true"/>
+  <!-- An immovable barrier parked across the aisle, defaulted OFF so every run
+       recorded before Phase 3 still describes the world it was measured in.
+       Phase 2's recovery-suppression A/B could only show that the mechanism
+       OPERATES, never that it was NEEDED: the longest halt it produced was 0.80 s
+       against a 10 s movement_time_allowance, because a walking pedestrian clears
+       the sector in under a second. A barrier that never moves produces a halt that
+       does not end, which is the condition the suppression exists for. -->
+  <xacro:arg name="with_static_obstacle" default="false"/>
+  <xacro:arg name="obstacle_x" default="-5.0"/>
+  <xacro:arg name="obstacle_y" default="0.0"/>
+  <!-- Spans the full 5.5 m aisle by default. A gap the robot could plan through
+       would let Nav2 route around it, and the halt would end as soon as it did. -->
+  <xacro:arg name="obstacle_size_y" default="5.5"/>
+  <xacro:arg name="obstacle_size_x" default="0.40"/>
+  <xacro:arg name="obstacle_size_z" default="1.20"/>
 
   <xacro:property name="ramp_angle_deg" value="$(arg ramp_angle_deg)"/>
   <xacro:property name="ramp_angle" value="${radians(ramp_angle_deg)}"/>
@@ -226,6 +241,34 @@
 
     <xacro:rack_row side="north" y="${rack_row_y}"/>
     <xacro:rack_row side="south" y="${-rack_row_y}"/>
+
+    <!-- ==================== Static barrier (optional) ====================
+         Ordinary static geometry, emitted in the same shape as a rack. Because it
+         is a <model> with a <collision><geometry><box>, world_geometry.static_boxes
+         picks it up for free, so the LiDAR-only dynamic/static classifier in
+         nav_goal_run scores it as static with no code change. -->
+    <xacro:if value="${'$(arg with_static_obstacle)'.lower() == 'true'}">
+    <model name="static_barrier">
+      <static>true</static>
+      <pose>$(arg obstacle_x) $(arg obstacle_y) ${$(arg obstacle_size_z) / 2.0} 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>$(arg obstacle_size_x) $(arg obstacle_size_y) $(arg obstacle_size_z)</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>$(arg obstacle_size_x) $(arg obstacle_size_y) $(arg obstacle_size_z)</size></box>
+          </geometry>
+          <material>
+            <ambient>0.65 0.15 0.10 1</ambient>
+            <diffuse>0.85 0.20 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    </xacro:if>
 
     <!-- ==================== Moving obstacles ====================
          Confirmed in smoke test 1: visible to the LiDAR, reaching the Nav2

@@ -31,6 +31,10 @@
   <!-- params.py imports the validated topic names from amr_bsp.topics, so the Nav2
        templates and the BSP cannot disagree about what Nav2 subscribes to. -->
   <exec_depend>amr_bsp</exec_depend>
+  <!-- params.py imports the fleet frame and map topic from here rather than
+       restating them: FleetMapNode publishes both and both global costmaps consume
+       them, and a contract written down twice is a contract that drifts. -->
+  <exec_depend>amr_fleet_control</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
