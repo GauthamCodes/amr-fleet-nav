@@ -1,0 +1,10 @@
+<library path="amr_costmap_plugins">
+  <class type="amr_costmap_plugins::FleetTrajectoryLayer" base_class_type="nav2_costmap_2d::Layer">
+    <description>
+      Stamps the OTHER robots' predicted trajectories into this robot's local costmap
+      with time-decayed cost. This is where the assignment's MAPF requirement (3.2) is
+      satisfied: each robot's local planner consumes its peers' intentions directly,
+      rather than a central node handing out schedules.
+    </description>
+  </class>
+</library>

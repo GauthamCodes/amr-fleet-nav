@@ -122,6 +122,9 @@ def _setup(context, *args, **kwargs):
                     "scan_topic": scan_topic,
                     "with_nav2": with_nav2,
                     "suppress_recovery": suppress_recovery,
+                    "with_trajectory_layer": LaunchConfiguration(
+                        "with_trajectory_layer"
+                    ).perform(context),
                     "stagger": str(STACK_STAGGER_S + index * STACK_STAGGER_STEP_S),
                 },
             )
@@ -173,6 +176,13 @@ def generate_launch_description():
                 default_value="",
                 description="Path stem for the selective-update accept/defer "
                 "evidence. Empty writes nothing.",
+            ),
+            DeclareLaunchArgument(
+                "with_trajectory_layer",
+                default_value="true",
+                description="Load FleetTrajectoryLayer into every robot's local "
+                "costmap. This is where the MAPF requirement is satisfied; false "
+                "is the control arm of the Phase 6 A/B.",
             ),
             DeclareLaunchArgument("with_static_obstacle", default_value="false"),
             DeclareLaunchArgument("obstacle_x", default_value="-5.0"),

@@ -47,6 +47,7 @@ BSP_START_S = 10.0
 SLAM_START_S = 14.0
 NAV2_START_S = 22.0
 GATE_START_S = 23.0
+PREDICTOR_START_S = 24.0
 
 
 def _setup(context, *args, **kwargs):
@@ -110,7 +111,16 @@ def _setup(context, *args, **kwargs):
         staged.append(
             TimerAction(
                 period=NAV2_START_S + stagger,
-                actions=[include_scanned("amr_navigation", "nav2.launch.py")],
+                actions=[
+                    include(
+                        "amr_navigation",
+                        "nav2.launch.py",
+                        scan_topic=scan_topic,
+                        with_trajectory_layer=LaunchConfiguration(
+                            "with_trajectory_layer"
+                        ).perform(context),
+                    )
+                ],
             )
         )
         # The gate goes up WITH Nav2, not before it: its only job until Nav2 exists
@@ -126,6 +136,17 @@ def _setup(context, *args, **kwargs):
                         scan_topic=scan_topic,
                         suppress_recovery=suppress_recovery,
                     )
+                ],
+            )
+        )
+        # The predictor comes up WITH Nav2 because its primary input is /plan.
+        # Without a planner it would fall back to constant-velocity projection
+        # forever, which is a correct answer to a question nobody asked.
+        staged.append(
+            TimerAction(
+                period=PREDICTOR_START_S + stagger,
+                actions=[
+                    include("amr_fleet_control", "trajectory_predictor.launch.py")
                 ],
             )
         )
@@ -154,6 +175,12 @@ def generate_launch_description():
                 description="Set false for the control run that shows Nav2 DOES "
                 "fire recovery behaviours during a halt when nothing suppresses "
                 "them. Without that control, a zero recovery count proves nothing.",
+            ),
+            DeclareLaunchArgument(
+                "with_trajectory_layer",
+                default_value="true",
+                description="Load FleetTrajectoryLayer into this robot's local "
+                "costmap. false is the Phase 6 control arm.",
             ),
             DeclareLaunchArgument(
                 "stagger",

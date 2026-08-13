@@ -4,11 +4,13 @@
   <name>amr_costmap_plugins</name>
   <version>0.1.0</version>
   <description>
-    Nav2 costmap_2d layer plugins. RampCostLayer turns slope into traversability cost for the
-    global planner; FleetTrajectoryLayer stamps the other robots' predicted trajectories into
-    each robot's local costmap, which is where the MAPF requirement is satisfied.
-    C++ because both run at costmap update rate behind the pluginlib API.
-    SKELETON: RampCostLayer lands in Phase 4, FleetTrajectoryLayer in Phase 6.
+    Nav2 costmap_2d layer plugins. FleetTrajectoryLayer stamps the other robots' predicted
+    trajectories into each robot's LOCAL costmap with time-decayed cost, which is where the
+    assignment's MAPF requirement (3.2) is satisfied: a robot's local planner consumes its
+    peers' intentions directly rather than a central node handing out schedules.
+    C++ because it runs at costmap update rate behind the pluginlib API.
+    RampCostLayer is not here: the compressed delivery plan descopes ramp cost to a costmap
+    filter mask, which the assignment permits verbatim.
   </description>
   <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
   <license>Apache-2.0</license>
@@ -21,6 +23,7 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>tf2_ros</depend>
 
   <test_depend>ament_lint_auto</test_depend>

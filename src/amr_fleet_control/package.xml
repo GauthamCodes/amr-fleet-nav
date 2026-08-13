@@ -30,6 +30,11 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>amr_description</exec_depend>
+  <!-- amr_bsp owns topics.py, the single topic contract. TrajectoryPredictor
+       imports PREDICTED_TRAJECTORY from it rather than restating the name, for
+       the same reason every other consumer does: a contract with two copies is
+       not a contract. -->
+  <exec_depend>amr_bsp</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

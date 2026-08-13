@@ -34,3 +34,11 @@ VALIDATED_CAMERA = "validated/camera/image_raw"
 CMD_NAV = "cmd_vel_nav"
 CMD_GATED = "cmd_vel"
 CMD_PLANT = "cmd_vel_plant"
+
+#: Where a robot advertises its own intentions, and the topic every OTHER robot's
+#: FleetTrajectoryLayer subscribes to. nav_msgs/Path in the ``fleet_map`` frame,
+#: with each pose's ``header.stamp`` carrying the time that pose is predicted to
+#: be REACHED rather than the time it was published - the convention that lets a
+#: standard message express a space-TIME trajectory without a custom interface
+#: package. See amr_fleet_control.trajectory_predictor for the producer.
+PREDICTED_TRAJECTORY = "predicted_trajectory"

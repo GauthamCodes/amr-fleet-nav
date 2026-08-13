@@ -63,7 +63,15 @@ def _setup(context, *args, **kwargs):
         raise ValueError(f"'{robot_name}' is not in fleet.yaml: {sorted(fleet)}")
     robot = fleet[robot_name]
 
-    params = render_nav2_params(robot, namespace=robot_name, scan_topic=scan_topic)
+    with_layer = (
+        LaunchConfiguration("with_trajectory_layer").perform(context).lower() != "false"
+    )
+    params = render_nav2_params(
+        robot,
+        namespace=robot_name,
+        scan_topic=scan_topic,
+        trajectory_layer_enabled=with_layer,
+    )
 
     nodes = [
         Node(
@@ -120,6 +128,16 @@ def generate_launch_description():
                 description=(
                     "Scan topic relative to the robot namespace. Phase 2 points this "
                     "at SensorBSP's validated output without touching any config."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "with_trajectory_layer",
+                default_value="true",
+                description=(
+                    "Load FleetTrajectoryLayer into the local costmap. false is the "
+                    "control arm of the Phase 6 A/B: without it, a cost measured at a "
+                    "peer's predicted cell proves nothing, because the obstacle layer "
+                    "would have marked the peer's body anyway."
                 ),
             ),
             OpaqueFunction(function=_setup),

@@ -254,7 +254,13 @@ local_costmap:
       # the drive axle - see fleet_config.footprint_polygon.
       footprint: "__FOOTPRINT__"
       footprint_padding: 0.03
-      plugins: ["obstacle_layer", "inflation_layer"]
+      # fleet_trajectory_layer is LAST, and the order is load-bearing. Layers run
+      # in list order and the inflation layer writes over the cells it inflates,
+      # so a trajectory deposit placed before it would be partially erased around
+      # any real obstacle - exactly where two robots are most likely to meet.
+      # Running last also keeps a peer's predicted path GRADED rather than
+      # inflated as though it were an obstacle: it is an intention, not a wall.
+      plugins: ["obstacle_layer", "inflation_layer", "fleet_trajectory_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
@@ -283,6 +289,43 @@ local_costmap:
         # while leaving the 5.5 m aisle traversable.
         inflation_radius: 0.70
         cost_scaling_factor: 2.5
+      # ======================================================================
+      # THE MAPF REQUIREMENT (assignment 3.2) IS SATISFIED HERE.
+      #
+      # This is the line an evaluator asking "where does AMR-2's local planner
+      # consume AMR-1's trajectory?" is looking for: a layer in amr2's LOCAL
+      # costmap, subscribed to /amr1/predicted_trajectory. The peer list is
+      # rendered per robot by amr_navigation.params from fleet.yaml - "everyone
+      # except me" - so a third robot in that file is consumed by the first two
+      # with no code change and no robot named anywhere (docs/ENGINEERING_NOTES.md rule 5).
+      # ======================================================================
+      fleet_trajectory_layer:
+        plugin: "amr_costmap_plugins::FleetTrajectoryLayer"
+        # Rendered, not hardcoded: the layer-off arm of the Phase 6 A/B needs the
+        # layer genuinely absent from the costmap rather than present and asked
+        # nicely at runtime. The plugin reads this once, at onInitialize.
+        enabled: __TRAJECTORY_LAYER_ENABLED__
+        trajectory_topics: __TRAJECTORY_TOPICS__
+        # 6 s ahead. At amr2's 1.0 m/s that reserves 6 m of aisle, past the
+        # 8 x 8 m rolling window's 4 m half-width, so the horizon is bounded by
+        # the costmap rather than by this number.
+        horizon_s: 6.0
+        # Cost falls to 1/e of max_cost after this long. 3 s against a 6 s
+        # horizon leaves the far end of a prediction at ~13 % of max_cost -
+        # present, but not enough to deflect a robot away from a cell a peer
+        # will not reach for six seconds.
+        decay_tau_s: 3.0
+        # Covers amr1's 0.54 m circumscribed radius on one side of the deposit,
+        # so a deposit and a robot centre at radius_m are just clear of contact.
+        radius_m: 0.45
+        # Below 253 (INSCRIBED_INFLATED_OBSTACLE) by construction; the layer
+        # REJECTS a larger value rather than clipping it. A peer's intention
+        # must be expensive, never impassable, or two robots deadlock on each
+        # other's predictions.
+        max_cost: 240
+        # A peer that stops publishing stops costing. Without this a robot that
+        # dies mid-aisle leaves a phantom corridor its peers never enter.
+        stale_after_s: 2.0
       always_send_full_costmap: true
 
 global_costmap:

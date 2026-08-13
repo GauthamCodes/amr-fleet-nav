@@ -121,12 +121,31 @@ class FleetMission(Node):
         self.declare_parameter("goals", [0.0])
         self.declare_parameter("results_dir", os.path.join(os.getcwd(), "results"))
         self.declare_parameter("tag", "concurrent_goals")
+        # Defaults to phase3_ so every Phase 3 artifact keeps the name it already
+        # has on disk and in the session log. Phase 6 reuses this node for the
+        # crossing run and points it at its own prefix.
+        self.declare_parameter("stem_prefix", "phase3_")
+        # The report's own heading and its note on what the separation number
+        # means. Both default to the Phase 3 text, so that run's artifacts read
+        # exactly as they did. Phase 6 reuses this node for a run whose whole
+        # point is that the routes CROSS, and a report that still said "the two
+        # routes are deconflicted by design" would be describing a different
+        # experiment - the same trap safety_run's `title` parameter was added for.
+        self.declare_parameter("title", "PHASE 3 - concurrent goals to the whole fleet")
+        self.declare_parameter(
+            "separation_note",
+            "The two routes are deconflicted by design; the forced conflict, "
+            "mutual local deviation and the yield protocol are Phases 6 and 7.",
+        )
         self.declare_parameter("start_delay_s", 5.0)
         self.declare_parameter("timeout_s", 180.0)
         self.declare_parameter("linger_s", 3.0)
 
         self.results_dir = self.get_parameter("results_dir").value
         self.tag = self.get_parameter("tag").value
+        self.stem_prefix = self.get_parameter("stem_prefix").value
+        self.title = self.get_parameter("title").value
+        self.separation_note = self.get_parameter("separation_note").value
         self.start_delay = float(self.get_parameter("start_delay_s").value)
         self.timeout = float(self.get_parameter("timeout_s").value)
         self.linger = float(self.get_parameter("linger_s").value)
@@ -370,7 +389,7 @@ class FleetMission(Node):
 
     def _write_report(self):
         os.makedirs(self.results_dir, exist_ok=True)
-        stem = os.path.join(self.results_dir, f"phase3_{self.tag}")
+        stem = os.path.join(self.results_dir, f"{self.stem_prefix}{self.tag}")
 
         lines = []
         add = lines.append
@@ -378,7 +397,7 @@ class FleetMission(Node):
         thin = "-" * 78
 
         add(rule)
-        add("PHASE 3 - concurrent goals to the whole fleet")
+        add(self.title)
         add(rule)
         add(f"robots dispatched together:   {len(self.runs)}")
         add(f"goal frame:                   {FLEET_FRAME} (= the Gazebo world frame)")
@@ -425,9 +444,9 @@ class FleetMission(Node):
             add("    no ground-truth samples for two robots at once")
         add("")
         add("    Distance between FOOTPRINT ORIGINS, so it is a clearance measure and")
-        add("    not a collision check. The two routes are deconflicted by design;")
-        add("    the forced conflict, mutual local deviation and the yield protocol")
-        add("    are Phases 6 and 7.")
+        add("    not a collision check.")
+        add("")
+        add(f"    {self.separation_note}")
         add(thin)
         add("[C] GLOBAL COSTMAP AND THE RAMP FILTER")
         if self.costmaps:
@@ -511,7 +530,7 @@ class FleetMission(Node):
         text = "\n".join(lines)
         print(text, flush=True)
         with open(f"{stem}.md", "w", encoding="utf-8") as handle:
-            handle.write("# Phase 3 - concurrent goals to the whole fleet\n\n")
+            handle.write(f"# {self.title}\n\n")
             handle.write("```\n")
             handle.write(text)
             handle.write("\n```\n")

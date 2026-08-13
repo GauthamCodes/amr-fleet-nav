@@ -32,8 +32,8 @@ import tempfile
 from ament_index_python.packages import get_package_share_directory
 import yaml
 
-from amr_bsp.topics import VALIDATED_SCAN
-from amr_description.fleet_config import footprint_polygon, frame_prefix
+from amr_bsp.topics import PREDICTED_TRAJECTORY, VALIDATED_SCAN
+from amr_description.fleet_config import footprint_polygon, frame_prefix, load_fleet
 from amr_fleet_control.fleet_grid import FLEET_FRAME, FLEET_MAP_TOPIC
 
 #: Topic the navigation stack reads scans from, relative to the robot namespace.
@@ -66,10 +66,33 @@ def frames(robot):
     }
 
 
-def _substitutions(robot, scan_topic):
+def peer_trajectory_topics(robot):
+    """Return the predicted-trajectory topics of every robot EXCEPT this one.
+
+    This is where "each robot consumes the OTHER robots' trajectories" is
+    expressed, and expressing it here rather than in the layer is deliberate.
+    FleetTrajectoryLayer subscribes to whatever list it is given; the exclusion
+    of self is a property of the fleet, and the fleet lives in fleet.yaml. So
+    there is no robot name and no self-comparison inside any node, and adding an
+    amr3 wires it into amr1 and amr2 automatically (docs/ENGINEERING_NOTES.md rule 5).
+
+    Absolute names, not relative: this list is rendered into a parameter file
+    read by a node inside /amrN, where a relative "predicted_trajectory" would
+    resolve to the robot's OWN topic - a robot perfectly avoiding itself, which
+    would look like a working layer and be the opposite of one.
+    """
+    return [
+        f"/{peer['name']}/{PREDICTED_TRAJECTORY}"
+        for peer in load_fleet()
+        if peer["name"] != robot["name"]
+    ]
+
+
+def _substitutions(robot, scan_topic, trajectory_layer_enabled=True):
     """Return the placeholder -> value map for one robot."""
     f = frames(robot)
     return {
+        "__TRAJECTORY_LAYER_ENABLED__": "true" if trajectory_layer_enabled else "false",
         "__MAP_FRAME__": f["map"],
         "__ODOM_FRAME__": f["odom"],
         "__BASE_FRAME__": f["base"],
@@ -93,6 +116,9 @@ def _substitutions(robot, scan_topic):
         # frame and this topic, and the costmaps consume them.
         "__GLOBAL_FRAME__": FLEET_FRAME,
         "__GLOBAL_MAP_TOPIC__": FLEET_MAP_TOPIC,
+        # The MAPF wiring: this robot's local costmap layer subscribes to every
+        # OTHER robot's predicted trajectory. See peer_trajectory_topics().
+        "__TRAJECTORY_TOPICS__": str(peer_trajectory_topics(robot)),
         "__FOOTPRINT__": str(footprint_polygon(robot)),
         # Kinodynamic limits, identical to what the Gazebo DiffDrive plugin enforces.
         # A planner that models limits the plant will not deliver produces tracking
@@ -108,12 +134,15 @@ def _substitutions(robot, scan_topic):
     }
 
 
-def _render(template_path, robot, scan_topic, namespace, out_name):
+def _render(
+    template_path, robot, scan_topic, namespace, out_name, trajectory_layer_enabled=True
+):
     """Substitute placeholders, re-root under the namespace, and write the file."""
     with open(template_path, "r", encoding="utf-8") as handle:
         text = handle.read()
 
-    for placeholder, value in _substitutions(robot, scan_topic).items():
+    substitutions = _substitutions(robot, scan_topic, trajectory_layer_enabled)
+    for placeholder, value in substitutions.items():
         text = text.replace(placeholder, value)
 
     if "__" in text.replace("ros__parameters", ""):
@@ -139,7 +168,9 @@ def _render(template_path, robot, scan_topic, namespace, out_name):
     return out_path
 
 
-def render_nav2_params(robot, namespace=None, scan_topic=SCAN_TOPIC):
+def render_nav2_params(
+    robot, namespace=None, scan_topic=SCAN_TOPIC, trajectory_layer_enabled=True
+):
     """Render this robot's Nav2 parameter file and return its path."""
     namespace = robot["name"] if namespace is None else namespace
     return _render(
@@ -148,6 +179,7 @@ def render_nav2_params(robot, namespace=None, scan_topic=SCAN_TOPIC):
         scan_topic,
         namespace,
         f"nav2_params_{robot['name']}.yaml",
+        trajectory_layer_enabled=trajectory_layer_enabled,
     )
 
 

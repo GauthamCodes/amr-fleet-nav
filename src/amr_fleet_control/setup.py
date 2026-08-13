@@ -26,11 +26,11 @@ setup(
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
-        # TrajectoryPredictor and TrafficControlNode are registered here in
-        # Phases 6 and 7 respectively.
         "console_scripts": [
             "fleet_map_node = amr_fleet_control.fleet_map_node:main",
             "fleet_mission = amr_fleet_control.fleet_mission:main",
+            "trajectory_predictor = amr_fleet_control.trajectory_predictor:main",
+            "trajectory_probe = amr_fleet_control.trajectory_probe:main",
         ],
     },
 )
