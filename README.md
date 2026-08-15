@@ -26,7 +26,7 @@ stated with the same evidence discipline as the results in §5.**
 
 | Document | What it holds |
 |---|---|
-| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Twelve demos: exact verified commands, what appears on screen, the numbers to quote, per-demo failure modes |
+| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Twelve scenarios, each a self-contained block: purpose, requirement, exact command, whether RViz auto-starts, Fixed Frame, whether actors are on, expected visuals, expected result, failure modes |
 | [`docs/ENGINEERING_NOTES.md`](docs/ENGINEERING_NOTES.md) | The eight design invariants the code cites by number |
 | [`docs/ASSIGNMENT.pdf`](docs/ASSIGNMENT.pdf) | The source requirements |
 | [`media/README.md`](media/README.md) | What each recorded clip shows, and where a recorded run differs from the canonical artifact |
@@ -140,7 +140,7 @@ committed Phase 3 evidence, which was measured without them.
    DDS participants**. Past the default ceiling, node creation throws `Failed to find
    a free participant index for domain 0` and six of *amr2's* Nav2 servers die while
    amr1 comes up perfectly — which reads exactly like a namespacing bug in the second
-   robot and is a host-wide limit. See [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §2.
+   robot and is a host-wide limit. See [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §0.
 
 2. **Run `./scripts/clean_processes.sh` before every launch.** It kills the simulator
    and the ROS graph, then prints the surviving process table and exits non-zero if
@@ -163,7 +163,7 @@ switch them off and the demonstration runs switch them on. `fleet_nav.launch.py`
 them **on**; `phase2_safety_run.launch.py` has them **hard-wired on**, because the
 pedestrian *is* that demo. `phase3_fleet_goals.launch.py` and `phase6_conflict.launch.py`
 default them off and take `with_actors:=true`. The full per-launch table is in
-[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §4.
+[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §2.
 
 Gazebo actors are **not physics entities** — they cannot generate contacts, so
 clearance rather than collision-avoidance is the honest quantity throughout (§10.11).
@@ -356,7 +356,7 @@ from what was measured, not from what was built** — three rows below say a cla
 | § | Requirement | Implementation | Evidence | Status |
 |---|---|---|---|---|
 | **1** | Heterogeneous fleet (AMR-1 mapper/lead higher payload; AMR-2 scout/follower higher acceleration) in a multi-level Gazebo warehouse with racks, ramp and dynamic obstacles | `amr_description/config/fleet.yaml` — one typed robot list; one shared `amr.urdf.xacro`; `amr_gazebo` warehouse with 8° ramp, two plateaus, rack rows, walking actors | `results/smoke1_actor_visibility.md`, `results/smoke2_ramp_phantom_return.md`, `results/phase1_map.png` | **Verified.** Actors raycast by the LiDAR and reach **254 LETHAL in the Nav2 costmap in 100 % of frames**; ramp max pitch **8.001°**; amr1 90.0 kg / 0.60 m/s vs amr2 23.0 kg / 1.00 m/s, both from the one file |
-| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK demo 1 (live in RViz) | **Verified.** 53-node graph, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m, TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps** |
+| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 53-node graph, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m, TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps** |
 | **2.1b** | **Selective mapping** — prioritise unexplored boundaries, reduce update frequency for repeatedly traversed areas | Scored policy in `fleet_map_node.py`: `w_f·frontier + w_c·change + w_r·recency − w_v·revisit`; below threshold the merge *and* the composite work are skipped | `results/phase3_selective_updates.md` + `.csv` | **Verified.** **41 candidates scored, 23 accepted, 18 deferred (43.9 %)**, measured while both robots were exploring. Per robot: amr1 13/8, amr2 10/10 |
 | **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals.md`, `_separation.csv` | **Verified.** **Both goals SUCCEEDED** — amr1 18.8 s, amr2 11.3 s; final errors 0.062 / 0.042 m; closest approach 3.000 m over 2 180 samples |
 | **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60) against `results/phase3_concurrent_goals.md` (null-mask arm) | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
