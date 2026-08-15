@@ -95,6 +95,8 @@ def _setup(context, *args, **kwargs):
             # 0.0 reproduces the Phase 3 null mask exactly. The Phase 4 arm passes
             # a graded value and is compared against that run's artifact.
             "ramp_mask_value": LaunchConfiguration("ramp_mask_value"),
+            "rviz": LaunchConfiguration("rviz"),
+            "rviz_config": LaunchConfiguration("rviz_config"),
         }.items(),
     )
 
@@ -139,6 +141,19 @@ def generate_launch_description():
                 description="0.0 is Phase 3's null mask. The Phase 4 arm runs "
                 "this same launch with a graded value and a different tag, so the "
                 "two artifacts are the A/B of the ramp cost mechanism.",
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Start RViz on the cooperative mapping view. This is "
+                "the run that shows /fleet_map driving both global costmaps AND "
+                "both /plan paths, so it is the one to record with rviz:=true.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="",
+                description="Override the RViz config. Empty takes "
+                "fleet_nav.launch.py's default, rviz/fleet_mapping.rviz.",
             ),
             DeclareLaunchArgument(
                 "results_dir", default_value=os.path.join(os.getcwd(), "results")

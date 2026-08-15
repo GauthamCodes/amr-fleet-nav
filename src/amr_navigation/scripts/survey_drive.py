@@ -134,8 +134,8 @@ class SurveyDrive(Node):
         # thrown away. The same launch WITH Nav2 saves fine, because the global
         # costmap's static layer holds the subscription open. Holding one here
         # makes the artifact independent of who else happens to be listening.
-        # (Phase 0 met the same pattern in nav2_costmap_2d, whose OccupancyGrid is
-        # subscriber-gated too - see docs/SESSION_LOG.md.)
+        # (nav2_costmap_2d shows the same pattern - its OccupancyGrid publisher is
+        # subscriber-gated too.)
         map_qos = QoSProfile(depth=1)
         map_qos.reliability = ReliabilityPolicy.RELIABLE
         map_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL

@@ -43,7 +43,7 @@ fleet:
     # them: 18 beams per scan returned 0.44-0.49 m off the robot's own wheels,
     # slam_toolbox mapped them as static obstacles at the robot's own position,
     # and the inflation around them enclosed the start cell so the global planner
-    # could not produce a path at all. See docs/SESSION_LOG.md, Phase 1.
+    # could not produce a path at all.
     # Constraint, asserted by tests/test_fleet_parameterization.py:
     #     lidar_height > wheel_radius + base_height   (the chassis top)
     lidar_height: 0.35
@@ -59,6 +59,12 @@ fleet:
     # adapter can only ever restrict what the plant already permits.
     max_jerk_x: 1.00
     max_jerk_theta: 3.00
+    # Chassis colour, "r g b a" in 0..1. Visual only - it reaches the RViz
+    # RobotModel display and the Gazebo visual and nothing else. RViz's
+    # RobotModel display has no colour override, so two robots rendered from one
+    # xacro are the same colour on screen unless the description says otherwise.
+    # Optional: an entry without it takes the xacro default (this same blue).
+    body_color: "0.25 0.35 0.55 1.0"
     # In the main aisle. Rack rows occupy y in [2.75, 3.65] and [-3.65, -2.75] at
     # x = -12, -8.4, -4.8, -1.2, +2.4, so the aisle |y| < 2.75 is clear for all x.
     # The previous (-8.0, -3.0) put this robot's entire footprint inside rack_south_1;
@@ -91,4 +97,6 @@ fleet:
     # the difference comes from this file rather than from any code.
     max_jerk_x: 2.50
     max_jerk_theta: 6.00
+    # Amber, against amr1's blue. See the note on amr1's entry.
+    body_color: "0.85 0.45 0.10 1.0"
     spawn: {x: -11.0, y: 1.5, z: 0.15, yaw: 0.0}

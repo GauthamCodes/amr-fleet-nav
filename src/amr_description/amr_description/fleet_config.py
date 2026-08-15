@@ -43,6 +43,11 @@ _XACRO_PASSTHROUGH = (
     "max_decel_x",
     "max_vel_theta",
     "max_accel_theta",
+    # Visual only, and optional: an entry without it renders in the xacro's default
+    # body colour. It is here because RViz's RobotModel display has no colour
+    # property, so "tell the two robots apart on screen" has to be answered in the
+    # description rather than in the RViz config.
+    "body_color",
     # Deliberately absent from fleet.yaml: the camera is a per-RUN choice, not a
     # per-robot property. Passing it through here lets the one launch that needs a
     # camera set it on the fleet entry it spawns, without every other run paying

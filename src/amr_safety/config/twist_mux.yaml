@@ -28,7 +28,7 @@
 #   snapshot - ros-jazzy-twist-mux 4.5.0 is built against a newer
 #   diagnostic_updater than ros-jazzy-diagnostic-updater 4.2.6 provides, and
 #   the constructor symbol it wants does not exist. The full diagnosis is in
-#   that file's docstring and in docs/SESSION_LOG.md. This schema is twist_mux's
+#   that file's docstring and in README section 10. This schema is twist_mux's
 #   own, so restoring the stock node is a two-line launch change.
 #
 # UNITS

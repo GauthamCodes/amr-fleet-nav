@@ -13,10 +13,9 @@ A two-robot (scalable to N) AMR fleet in a warehouse: cooperative SLAM with
 selective map updates, ramp-aware global planning, payload-adaptive motion
 smoothing, conflict-aware local planning, and a low-latency safety override.
 
-- `docs/PLAN.md` — architecture, requirement mapping, phase order.
-- `docs/SESSION_LOG.md` — the engineering log: measurements, findings, decisions
-  and retractions, phase by phase. Every number quoted anywhere comes from here or
-  from the `results/` file it names.
+- `README.md` — architecture, the requirement → implementation → evidence matrix,
+  the results, and the known limitations. Every number quoted anywhere comes from
+  the `results/` file named beside it.
 - `docs/DEMO_RUNBOOK.md` — how to run each demo and what it should show.
 - `docs/ASSIGNMENT.pdf` — the source requirements.
 
@@ -98,4 +97,4 @@ Wording that is easy to overstate, and the accurate form:
   edit to one file, which is bounded, not free.
 - Known limitations belong in the README, stated plainly. A reader who catches an
   overclaim discounts everything else, and this repository has already retracted one
-  finding of its own (`docs/SESSION_LOG.md`, Phase 2) rather than quietly dropping it.
+  finding of its own (README section 10, item 12) rather than quietly dropping it.

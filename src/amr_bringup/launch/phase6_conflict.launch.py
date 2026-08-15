@@ -80,6 +80,8 @@ def _setup(context, *args, **kwargs):
             "headless": LaunchConfiguration("headless"),
             "with_actors": LaunchConfiguration("with_actors"),
             "with_trajectory_layer": with_layer,
+            "rviz": LaunchConfiguration("rviz"),
+            "rviz_config": LaunchConfiguration("rviz_config"),
         }.items(),
     )
 
@@ -161,6 +163,20 @@ def generate_launch_description():
                 default_value="layer_on",
                 description="Names the evidence files. Use layer_off for the "
                 "control arm so the two do not overwrite each other.",
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Start RViz on the cooperative mapping view. For this "
+                "demo also switch on its predicted-trajectory and local-costmap "
+                "toggles: the shot is one robot's predicted path lying across the "
+                "other's local costmap.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="",
+                description="Override the RViz config. Empty takes "
+                "fleet_nav.launch.py's default, rviz/fleet_mapping.rviz.",
             ),
             DeclareLaunchArgument(
                 "results_dir", default_value=os.path.join(os.getcwd(), "results")

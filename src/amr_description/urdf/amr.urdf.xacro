@@ -89,6 +89,14 @@
   <xacro:arg name="camera_height" default="120"/>
   <xacro:arg name="camera_update_rate" default="10.0"/>
 
+  <!-- Chassis colour, "r g b a" in 0..1. Visual only - it reaches the RViz
+       RobotModel display and the Gazebo visual, and nothing else reads it. It
+       exists because rviz_default_plugins/RobotModel has no colour override
+       property: two robots from one xacro are indistinguishable on screen unless
+       the difference is in the description. Default is the original body colour,
+       so a fleet entry that omits it renders exactly as before. -->
+  <xacro:arg name="body_color" default="0.25 0.35 0.55 1.0"/>
+
   <!-- ==== Kinodynamic limits (also fed to nav2_velocity_smoother in later phases,
            so simulation and planning read the SAME numbers) ==== -->
   <xacro:arg name="max_vel_x" default="0.60"/>
@@ -109,6 +117,7 @@
   <xacro:property name="base_width" value="$(arg base_width)"/>
   <xacro:property name="base_height" value="$(arg base_height)"/>
   <xacro:property name="lidar_height" value="$(arg lidar_height)"/>
+  <xacro:property name="body_color" value="$(arg body_color)"/>
 
   <!-- Total mass is what the physics engine sees; payload scaling elsewhere in the
        stack (SafetyGate's k, PayloadJerkAdapter's limits) keys off payload_kg. -->
@@ -170,8 +179,8 @@
       <geometry>
         <box size="${base_length} ${base_width} ${base_height}"/>
       </geometry>
-      <material name="amr_body">
-        <color rgba="0.25 0.35 0.55 1.0"/>
+      <material name="${name}_body">
+        <color rgba="${body_color}"/>
       </material>
     </visual>
     <collision>

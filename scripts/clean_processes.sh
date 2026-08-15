@@ -9,7 +9,7 @@
 #   starved the graph until the SafetyGate's command-timeout fail-safe fired and
 #   interleaved zeros into the command stream. The robot barely moved. That was
 #   written down as "the camera stalls the drive", and it took a re-measurement on
-#   a verified-clean process table to retract it. See docs/SESSION_LOG.md, Phase 2.
+#   a verified-clean process table to retract it. See README section 10.
 #
 #   Phase 3 runs two of everything, so there is twice as much to leak.
 #

@@ -20,17 +20,16 @@ stated with the same evidence discipline as the results in §5.**
 | **Languages** | Python (PEP 8, flake8 + black) · C++ (Google style) where measured latency justifies it |
 | **Packages** | 9, all namespaced, all configuration-driven |
 | **Tests** | 241 unit tests, pure functions, no simulator required |
-| **Evidence** | 76 artifacts in [`results/`](results/) |
+| **Evidence** | 75 artifacts in [`results/`](results/) |
 
 **Documentation map**
 
 | Document | What it holds |
 |---|---|
-| [`docs/SESSION_LOG.md`](docs/SESSION_LOG.md) | The engineering log — every measurement, finding, decision, **non-result and retraction**, phase by phase |
-| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Ten demos: exact commands, what appears on screen, the numbers to quote, per-demo failure modes |
-| [`docs/PLAN.md`](docs/PLAN.md) | Architecture and requirement mapping as planned, with deviations marked |
+| [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Twelve demos: exact verified commands, what appears on screen, the numbers to quote, per-demo failure modes |
 | [`docs/ENGINEERING_NOTES.md`](docs/ENGINEERING_NOTES.md) | The eight design invariants the code cites by number |
 | [`docs/ASSIGNMENT.pdf`](docs/ASSIGNMENT.pdf) | The source requirements |
+| [`media/README.md`](media/README.md) | What each recorded clip shows, and where a recorded run differs from the canonical artifact |
 
 **Demo recordings** — [`media/`](media/), camera following the robot throughout:
 
@@ -45,6 +44,14 @@ Each clip is a real run and ships with that run's own report in
 [`media/run_reports/`](media/run_reports/). [`media/README.md`](media/README.md) states
 where a recorded run differs from the canonical artifact in `results/` — including one
 hold that ended in a **deadlock** rather than a clean release.
+
+**The submission screenshare video is delivered separately and is deliberately not in
+this repository** — `videos/amr_fleet_nav_submission.mp4`, 9 min 24 s, a walkthrough of
+the warehouse and fleet, the architecture, cooperative mapping and selective updates
+live in RViz, simultaneous goals with pedestrians, the ramp and MAPF limitations stated
+plainly, the yield protocol, the safety override, sensor validation, and scalability.
+`videos/` is kept as the place to record into, and `*.mp4` / `*.mkv` / `*.webm` are
+git-ignored apart from the four short evidence clips above.
 
 ---
 
@@ -98,14 +105,32 @@ rosdep install --from-paths src --ignore-src -r -y
 That is the whole system. `headless:=true` (the default) runs it without the Gazebo
 GUI, which is roughly 50–80 % faster.
 
-**To see it do something rather than just come up**, use the same fleet with a mission
-attached — it dispatches concurrent goals to both robots, writes its report into
-`results/` and shuts itself down:
+**To see the cooperative map being built** — the assignment's first evaluation
+criterion, and the one thing that is only legible in RViz — run the survey. Gazebo
+and RViz both come up from this one command, already configured:
 
 ```bash
 ./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup phase3_fleet_goals.launch.py headless:=false
+./ws.sh ros2 launch amr_bringup fleet_survey.launch.py
 ```
+
+Both robots drive the same circuit half a lap apart and `/fleet_map` fills in from
+both ends of the aisle at once. Toggle *amr1 own map* and *amr2 own map* in the
+Displays panel to show the composite really is a fusion of two maps.
+
+**To see both robots navigate to concurrent goals**, use the fleet with a mission
+attached — it dispatches both goals in one pass, writes its report into `results/`
+and shuts itself down:
+
+```bash
+./scripts/clean_processes.sh
+./ws.sh ros2 launch amr_bringup phase3_fleet_goals.launch.py \
+    headless:=false rviz:=true with_actors:=true tag:=demo
+```
+
+`with_actors:=true` puts the walking pedestrians in the world (see
+[§2.1](#21-dynamic-obstacles)); `tag:=demo` keeps the run from overwriting the
+committed Phase 3 evidence, which was measured without them.
 
 ### Two environment rules that are not optional
 
@@ -124,16 +149,57 @@ attached — it dispatches concurrent goals to both robots, writes its report in
    session, and then retracted (§10). *A process-hygiene failure is a measurement
    failure.*
 
-### Visualisation
+### 2.1 Dynamic obstacles
+
+The warehouse contains **three scripted pedestrians** — one walking the main aisle,
+one crossing the ramp approach into the robot's path, one on the upper plateau. They
+are verified to reach the navigation stack: `results/smoke1_actor_visibility.md`
+records them raycast by the LiDAR and marked **254 LETHAL in the Nav2 costmap in
+100 % of frames**.
+
+They are controlled by `with_actors`, and **the default differs per launch on
+purpose** — a walking pedestrian is an uncontrolled variable, so the measurement runs
+switch them off and the demonstration runs switch them on. `fleet_nav.launch.py` has
+them **on**; `phase2_safety_run.launch.py` has them **hard-wired on**, because the
+pedestrian *is* that demo. `phase3_fleet_goals.launch.py` and `phase6_conflict.launch.py`
+default them off and take `with_actors:=true`. The full per-launch table is in
+[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §4.
+
+Gazebo actors are **not physics entities** — they cannot generate contacts, so
+clearance rather than collision-avoidance is the honest quantity throughout (§10.11).
+
+### 2.2 Visualisation
+
+RViz ships configured. `rviz:=true` starts it inside the launch, already loaded with
+`src/amr_bringup/rviz/fleet_mapping.rviz`:
 
 ```bash
-./ws.sh rviz2 --ros-args -p use_sim_time:=true
+./ws.sh ros2 launch amr_bringup fleet_survey.launch.py                # RViz on by default
+./ws.sh ros2 launch amr_bringup phase3_fleet_goals.launch.py rviz:=true headless:=false
 ```
 
-Fixed Frame `fleet_map` for anything with two robots, `amr1/odom` for the
-single-robot demos. Display list and QoS settings are in
-[`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §3. Nothing appears for the first ~25 s
-of any launch — that is the staged bringup, not a fault.
+`rviz:=true` is available on `fleet_nav`, `fleet_survey`, `phase3_fleet_goals`,
+`phase6_conflict` and `phase7_yield` — every two-robot demo. Starting it from the
+launch is preferred because a launched RViz cannot be the one process in the graph
+that missed `./ws.sh`.
+
+The config shows `/fleet_map`, both robot models (**amr1 blue, amr2 amber**, from
+`body_color` in `fleet.yaml`), both scans, both `/plan` paths, and the key TF frames
+only — with the own-maps, global costmaps, predicted trajectories and local costmaps
+one click away as toggles.
+
+**Fixed Frame is `fleet_map`** for anything with two robots, `amr1/odom` for the
+single-robot demos. **There is no bare `map` frame in this system** — every robot's
+SLAM frame is namespaced `amrN/map` and the shared root is `fleet_map`. A bare
+`rviz2` with no config comes up on the stock Fixed Frame `map` and is therefore blank
+with *"Frame [map] does not exist"*; use the saved config, or:
+
+```bash
+./ws.sh rviz2 -d src/amr_bringup/rviz/fleet_mapping.rviz --ros-args -p use_sim_time:=true
+```
+
+Nothing appears for the first ~25 s of any launch — that is the staged bringup, not a
+fault. `FleetMapNode` publishes `fleet_map` at t ≈ 16 s.
 
 ---
 
@@ -290,10 +356,10 @@ from what was measured, not from what was built** — three rows below say a cla
 | § | Requirement | Implementation | Evidence | Status |
 |---|---|---|---|---|
 | **1** | Heterogeneous fleet (AMR-1 mapper/lead higher payload; AMR-2 scout/follower higher acceleration) in a multi-level Gazebo warehouse with racks, ramp and dynamic obstacles | `amr_description/config/fleet.yaml` — one typed robot list; one shared `amr.urdf.xacro`; `amr_gazebo` warehouse with 8° ramp, two plateaus, rack rows, walking actors | `results/smoke1_actor_visibility.md`, `results/smoke2_ramp_phantom_return.md`, `results/phase1_map.png` | **Verified.** Actors raycast by the LiDAR and reach **254 LETHAL in the Nav2 costmap in 100 % of frames**; ramp max pitch **8.001°**; amr1 90.0 kg / 0.60 m/s vs amr2 23.0 kg / 1.00 m/s, both from the one file |
-| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; SESSION_LOG Phase 3 | **Verified.** 53-node graph, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m, TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps** |
+| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK demo 1 (live in RViz) | **Verified.** 53-node graph, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m, TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps** |
 | **2.1b** | **Selective mapping** — prioritise unexplored boundaries, reduce update frequency for repeatedly traversed areas | Scored policy in `fleet_map_node.py`: `w_f·frontier + w_c·change + w_r·recency − w_v·revisit`; below threshold the merge *and* the composite work are skipped | `results/phase3_selective_updates.md` + `.csv` | **Verified.** **41 candidates scored, 23 accepted, 18 deferred (43.9 %)**, measured while both robots were exploring. Per robot: amr1 13/8, amr2 10/10 |
 | **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals.md`, `_separation.csv` | **Verified.** **Both goals SUCCEEDED** — amr1 18.8 s, amr2 11.3 s; final errors 0.062 / 0.042 m; closest approach 3.000 m over 2 180 samples |
-| **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60); SESSION_LOG Phase 3 (null-mask arm) and Phase 4 | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
+| **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60) against `results/phase3_concurrent_goals.md` (null-mask arm) | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
 | **3.1** | Dynamic velocity and motion smoothing — acceleration and jerk limited by dynamic state and payload; the heavier AMR-1 must have lower acceleration limits than AMR-2 | Stock `nav2_velocity_smoother` **chained into** `amr_motion/payload_jerk_adapter.py`; per-robot limits from `fleet.yaml`, scaled down by payload state, never up | `results/phase5_payload_trace.md`, `.csv`, **`.png`** | **Verified for the payload ratio; jerk ceiling NOT certified.** amr1's peak commanded acceleration falls **×0.38** loaded against amr2's **×0.85**, and **no code distinguishes them**. Peak commanded velocity exactly 0.500 in all four cases. The published stream measures up to ~1.9× the configured jerk bound (§10) |
 | **3.2a** | **MAPF element** — the local planner for **each robot** consumes the **projected trajectory of the other robot** | `amr_fleet_control/trajectory_predictor.py` publishes each robot's projected path; `amr_costmap_plugins` `FleetTrajectoryLayer` (C++ pluginlib) deposits `max_cost·exp(−Δt/τ)` into the **other** robot's LOCAL costmap, combined with `std::max` | `results/phase6_cost_injection_layer_on.md` vs `..._off.md` (+ `.csv`) | **Mechanism verified against a control; autonomous mutual deviation NOT claimed.** At the peer's *predicted* cell 2 s ahead: **50/50 samples cost > 0 (100 %) with the layer, 0/59 (0 %) without**; median cost 145, max 240, decay model predicts 125.9. RegulatedPurePursuit paces against that cost rather than deviating laterally (§10) |
 | **3.2b** | Yielding protocol — Traffic Control Node enforces a **pre-defined** yield (lighter AMR-2 yields to heavier AMR-1) by commanding a temporary controlled stop | `amr_fleet_control/traffic_control.py`; yield = zero twist on the **priority-150** `cmd_vel_yield` mux channel; release by *ceasing to publish* (mux timeout), so a dead arbiter frees the robot rather than pinning it | `results/phase7_yield.md`, `phase7_yield_mission.md`, `phase7_yield_control.md` | **Verified.** Two escalations, **amr2 yielded both times**, held **1.0 s and 15.2 s**, both released on *conflict cleared* (never the 45 s fail-safe). **0 recovery behaviours during either hold**; SafetyGate blocking on **0 of 326 held cycles**, so the stop was the arbiter's alone. **Both goals SUCCEEDED.** Priority derived from `fleet.yaml` mass, not from a robot name |
@@ -922,13 +988,39 @@ table at **0.3500 m/s both with and without the camera**. The real cause was fou
 `/amr1/cmd_vel_plant`; the contention starved the graph until the gate's own
 command-timeout fail-safe fired and interleaved **663 zeros into 884 messages**. The
 camera stays defaulted off for a smaller and different reason: nothing consumes it.
-It is corrected in place in the log with the re-measurement, not deleted. All five
-retractions are indexed at the end of
-[`docs/SESSION_LOG.md`](docs/SESSION_LOG.md).
+It was corrected in place with the re-measurement rather than deleted, and the
+retraction is stated here rather than dropped. The other corrections made the same
+way are items 1 and 2 above.
 
 **13. MPPI does not drive this robot, and the retest was never run.** See §7.9.
 `TrajectoryPredictor` also exited 1 once during shutdown of a Phase 5 run, after its
 evidence had been written — **not diagnosed**, and recorded rather than ignored.
+
+**14. Most measurement runs were made with the pedestrians switched off, and that is
+a deliberate trade rather than an oversight.** The assignment requires a warehouse
+with frequent randomly moving dynamic obstacles, and the world has three; they are
+verified visible to the LiDAR and lethal in the costmap
+(`results/smoke1_actor_visibility.md`). But an actor walking through the measured
+region is an uncontrolled variable, so every A/B in §5 — the trajectory-layer cost
+injection, the fail-closed distance, the yield escalation, the payload trace — runs
+with `with_actors:=false`. **The runs that do exercise dynamic obstacles are the
+safety demo** (`results/phase2_safety_suppressed.md`, 3 halts on a pedestrian, goal
+still SUCCEEDED) **and the Phase 1 actor comparison**
+(`results/phase1_nav_actors.md`: the robot stopped twice and arced north, spending
++0.51 m of path and +7.3 s against the baseline). So dynamic-obstacle handling is
+demonstrated and measured, but it is **not** simultaneously present in the multi-robot
+conflict and mapping evidence. `with_actors:=true` turns them on in
+`phase3_fleet_goals` and `phase6_conflict` for anyone who wants to see it; a check
+this session confirmed both goals still SUCCEEDED with all three actors walking.
+
+**15. The cooperative-mapping demo is a demonstration, not a second evidence run.**
+`fleet_survey.launch.py` writes its own accept/defer report to
+`results/fleet_survey_updates.*`, and those counts move from run to run because the
+route, the timing and the SLAM updates are not identical twice. **The committed
+selective-mapping numbers are the Phase 3 artifact** (`phase3_selective_updates.md`,
+41/23/18, 43.9 % deferred), measured while both robots were under Nav2 control. The
+survey artifact is git-ignored for exactly that reason — it must not be mistaken for
+the evidence it sits beside.
 
 ---
 
@@ -941,8 +1033,10 @@ evidence had been written — **not diagnosed**, and recorded rather than ignore
 ├── scripts/
 │   └── clean_processes.sh  pre-flight; prints the surviving process table, exits non-zero
 ├── src/                    9 ROS 2 packages
+│   └── amr_bringup/rviz/   fleet_mapping.rviz — the cooperative mapping view
 ├── tests/                  241 pure-function unit tests
-├── results/                84 evidence artifacts — every number in this README
+├── results/                evidence artifacts — every number in this README
 ├── media/                  demo recordings, stills, and each recording's run report
-└── docs/                   engineering log, demo runbook, plan, design invariants, assignment
+├── videos/                 the submission screenshare is recorded here; git-ignored
+└── docs/                   demo runbook, design invariants, the assignment
 ```

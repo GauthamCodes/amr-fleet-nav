@@ -5,8 +5,8 @@ This is deliberately still a single-robot launch. Phase 3 added
 one-robot special case of that one - would silently turn every Phase 1 and Phase 2
 evidence run into a two-robot run, because ``phase1_survey``, ``phase1_nav_run`` and
 ``phase2_safety_run`` all include this file by name. Those runs' numbers are sensitive
-to graph contention (SESSION_LOG Phase 2, surprise 1), so the contamination would not
-raise an error, it would just move the measurements.
+to graph contention, so the contamination would not raise an error, it would just move
+the measurements.
 
 Instead both launches call :func:`amr_gazebo.spawn.world_actions` for the world
 singletons and include ``robot_stack.launch.py`` per robot. Neither includes the

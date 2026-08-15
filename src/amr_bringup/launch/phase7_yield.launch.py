@@ -111,6 +111,8 @@ def _setup(context, *args, **kwargs):
                 "PHASE 7 - forced narrow-intersection conflict, escalated to a yield"
                 + ("" if suppress.lower() != "false" else "  [CONTROL: no suppression]")
             ),
+            "rviz": LaunchConfiguration("rviz"),
+            "rviz_config": LaunchConfiguration("rviz_config"),
         }.items(),
     )
 
@@ -171,6 +173,20 @@ def generate_launch_description():
                 default_value="yield",
                 description="Names the evidence files. Change it for a control "
                 "arm so the two do not overwrite each other.",
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Start RViz on the cooperative mapping view. Both "
+                "/plan paths converging on the one gap is what makes 'narrow "
+                "intersection' legible, so this is the demo to record with "
+                "rviz:=true.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="",
+                description="Override the RViz config. Empty takes "
+                "fleet_nav.launch.py's default, rviz/fleet_mapping.rviz.",
             ),
             DeclareLaunchArgument("time_window_s", default_value="4.0"),
             DeclareLaunchArgument("obstacle_x", default_value="-5.0"),

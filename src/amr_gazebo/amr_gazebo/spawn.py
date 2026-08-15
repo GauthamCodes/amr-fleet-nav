@@ -278,8 +278,8 @@ def world_actions(mappings=None, headless=True, out_name="warehouse_nav.sdf"):
     launch file: if the SINGLE-robot launch delegated to the fleet launch, then
     phase1_survey, phase1_nav_run and phase2_safety_run - which include it by name -
     would each silently become two-robot runs. Their recorded numbers are sensitive
-    to graph contention (SESSION_LOG Phase 2, surprise 1), so that would not fail,
-    it would just quietly move the measurements.
+    to graph contention, so that would not fail, it would just quietly move the
+    measurements.
 
     Both launches call this instead, and neither includes the other.
 

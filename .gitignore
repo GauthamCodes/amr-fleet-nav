@@ -27,3 +27,21 @@ results/*.png
 
 # Worlds rendered from xacro at launch time.
 generated/
+
+# Screen recordings. The submission screenshare is delivered separately and is
+# deliberately NOT in the repository - it is far larger than anything else here
+# and it is not something an evaluator needs to clone. videos/ is kept (via
+# .gitkeep) as the place to put it locally while recording.
+*.mp4
+*.mkv
+*.webm
+# ...except the four short demo clips in media/, which ARE evidence: each is a
+# real run, each is cited from the README, and each ships with that run's own
+# report in media/run_reports/.
+!media/*.mp4
+
+# Demo runs write their own artifacts into results/. These are per-run outputs of
+# a demonstration, not the committed evidence they sit beside - the canonical
+# selective-update artifact is results/phase3_selective_updates.md.
+results/fleet_survey_updates.md
+results/fleet_survey_updates.csv

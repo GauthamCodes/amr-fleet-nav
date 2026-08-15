@@ -31,6 +31,7 @@ Run:
     ros2 launch amr_bringup fleet_nav.launch.py
     ros2 launch amr_bringup fleet_nav.launch.py headless:=false
     ros2 launch amr_bringup fleet_nav.launch.py with_actors:=false
+    ros2 launch amr_bringup fleet_nav.launch.py headless:=false rviz:=true
 """
 
 import os
@@ -45,6 +46,7 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 from amr_description.fleet_config import load_fleet
 from amr_gazebo.spawn import robot_actions, world_actions
@@ -66,6 +68,19 @@ STACK_STAGGER_STEP_S = 2.0
 #: inputs are those predictions, and a conflict test with one trajectory in it is
 #: not a conflict test.
 TRAFFIC_START_S = 30.0
+
+#: When RViz comes up, if it was asked for. Before FleetMapNode rather than after:
+#: RViz spends several seconds loading OGRE and its plugins, and doing that while
+#: twelve Nav2 servers are initialising costs the simulator real-time factor at the
+#: worst moment. Starting it early means the first thing it draws is the fleet map
+#: appearing, which is the shot.
+RVIZ_START_S = 12.0
+
+#: The cooperative mapping view, and the ONE place its path is written down. Every
+#: launch that forwards `rviz_config` leaves it empty to mean "this one".
+DEFAULT_RVIZ_CONFIG = os.path.join(
+    get_package_share_directory("amr_bringup"), "rviz", "fleet_mapping.rviz"
+)
 
 #: When the fleet map and the filter group come up. Must be comfortably before the
 #: earliest Nav2, which is robot_stack's NAV2_START_S (22) + STACK_STAGGER_S (2).
@@ -178,6 +193,41 @@ def _setup(context, *args, **kwargs):
             )
         )
 
+    # RViz is a DDS participant like any other node, so it needs the same merged
+    # CYCLONEDDS_URI as the rest of the graph. Started from here it inherits the
+    # environment of the ./ws.sh that launched this file, which is the one way of
+    # starting it that cannot be got wrong. See DEMO_RUNBOOK section 2.
+    if LaunchConfiguration("rviz").perform(context).lower() != "false":
+        # An EMPTY value resolves to the default, and that is load-bearing rather
+        # than defensive. Launch configurations are inherited by included launch
+        # files, and DeclareLaunchArgument only supplies a default for a name that
+        # is not already set - so a parent launch that declares its own
+        # `rviz_config` with an empty default (phase3, phase6 and phase7 all do,
+        # to keep the real path in one file) leaks that empty string down here and
+        # wins over the default below. RViz is then started as `-d ""`, silently
+        # falls back to its stock config, and comes up on Fixed Frame `map` - a
+        # frame this system never publishes, because every map frame is either
+        # namespaced `amrN/map` or the shared `fleet_map`. The window is blank and
+        # the only clue is "Frame [map] does not exist".
+        rviz_config = LaunchConfiguration("rviz_config").perform(context)
+        if not rviz_config:
+            rviz_config = DEFAULT_RVIZ_CONFIG
+        actions.append(
+            TimerAction(
+                period=RVIZ_START_S,
+                actions=[
+                    Node(
+                        package="rviz2",
+                        executable="rviz2",
+                        name="rviz2",
+                        output="log",
+                        arguments=["-d", rviz_config],
+                        parameters=[{"use_sim_time": True}],
+                    )
+                ],
+            )
+        )
+
     actions.append(
         TimerAction(
             period=FLEET_MAP_START_S,
@@ -261,6 +311,21 @@ def generate_launch_description():
             DeclareLaunchArgument("traffic_time_window_s", default_value="3.0"),
             DeclareLaunchArgument(
                 "traffic_title", default_value="PHASE 7 - yield protocol"
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Start RViz alongside the fleet, configured by "
+                "rviz_config. Off by default because every evidence run is "
+                "headless and a renderer it does not need costs it real-time "
+                "factor; on for anything being recorded.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value=DEFAULT_RVIZ_CONFIG,
+                description="RViz config file. Empty means the default, which is "
+                "the cooperative mapping view: /fleet_map in the fleet frame, both "
+                "robots, both scans, both plans, key frames only.",
             ),
             DeclareLaunchArgument("with_static_obstacle", default_value="false"),
             DeclareLaunchArgument("obstacle_x", default_value="-5.0"),

@@ -96,7 +96,7 @@ def test_the_heavier_laden_robot_gets_the_larger_gain(fleet):
 
 
 def test_the_gains_are_the_values_the_report_quotes(fleet):
-    """If these move, docs/SESSION_LOG.md and the README move with them."""
+    """If these move, the README and the results/ artifacts move with them."""
     by_name = {r["name"]: r for r in fleet}
     assert stopping_gain(by_name["amr1"]) == pytest.approx(1.875, abs=1e-3)
     assert stopping_gain(by_name["amr2"]) == pytest.approx(0.4564, abs=1e-3)

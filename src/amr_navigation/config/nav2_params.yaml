@@ -72,8 +72,9 @@ controller_server:
       yaw_goal_tolerance: 0.15
 
     # ========================================================================
-    # CONTROLLER: RegulatedPurePursuit, NOT MPPI. THIS IS A DEPARTURE FROM
-    # docs/PLAN.md SECTION 1 AND IT IS FLAGGED, NOT SILENT.
+    # CONTROLLER: RegulatedPurePursuit, NOT MPPI. THIS IS A DEPARTURE FROM THE
+    # ORIGINAL DESIGN AND IT IS FLAGGED, NOT SILENT - see README sections 7.9
+    # and 10, item 13.
     #
     # MPPI is configured, loads cleanly, and will not drive this robot. Measured
     # over four runs on an otherwise identical stack:
