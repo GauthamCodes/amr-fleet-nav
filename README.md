@@ -26,6 +26,7 @@ stated with the same evidence discipline as the results in §5.**
 
 | Document | What it holds |
 |---|---|
+| **[`HOW_TO_RUN.md`](HOW_TO_RUN.md)** | **Start here.** Every command to type, in order, in plain language, with what each one does and what you should see |
 | [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | Twelve scenarios, each a self-contained block: purpose, requirement, exact command, whether RViz auto-starts, Fixed Frame, whether actors are on, expected visuals, expected result, failure modes |
 | [`docs/ENGINEERING_NOTES.md`](docs/ENGINEERING_NOTES.md) | The eight design invariants the code cites by number |
 | [`docs/ASSIGNMENT.pdf`](docs/ASSIGNMENT.pdf) | The source requirements |
