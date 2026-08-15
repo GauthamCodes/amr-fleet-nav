@@ -803,23 +803,3 @@ believed for a session, and then retracted after re-measuring.
 ./ws.sh ros2 node list | wc -l
 ```
 
----
-
-## 7. Suggested order for a 7-minute recording
-
-Run **two** things live and quote the rest from `results/`. Live runs eat the
-budget: the shortest useful one is 3.5 minutes.
-
-| min | segment | live? |
-|---|---|---|
-| 0:00–1:00 | Architecture: the command chain, and why the safety gate is a serial fail-closed link rather than a mux input | slides/diagram |
-| 1:00–2:00 | Demo 1–3 from the artifacts: 53 nodes, one fleet map driving both global costmaps, both goals reached | quote |
-| 2:00–3:00 | Demo 4 + 5: halt, 8.46 ms mean sensor-to-zero, then 0.196 m vs 3.500 m under SIGKILL | quote |
-| 3:00–4:00 | Demo 8: cost injection, 100 % vs 0 % against the control — **and the RPP limitation stated plainly** | quote + RViz |
-| 4:00–5:00 | Demo 9: the payload plot, ×0.38 vs ×0.85, and the honest reading of the jerk column | quote |
-| 5:00–6:30 | **Demo 10 live** — the forced conflict, amr2 yielding, 0 recoveries during a 15.2 s hold | **LIVE** |
-| 6:30–7:00 | Known limitations, said plainly: fixed inter-map transform, RPP not MPPI, jerk measured at the subscriber, the retracted camera finding, the yield control arm that did not reproduce | — |
-
-**Closing line worth rehearsing:** every claim in the video points at a file in
-`results/`, every limitation is in the README, and the one finding that turned out
-to be wrong was retracted in the log rather than quietly deleted.
