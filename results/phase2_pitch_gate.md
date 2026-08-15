@@ -10,7 +10,7 @@ gate margin:              0.90 x h/sin|pitch|
 gate floor (interlock):   1.565 m
 validated scans:          903
 ------------------------------------------------------------------------------
-[0] HEADER STAMP PRESERVATION  (docs/ENGINEERING_NOTES.md rule 4)
+[0] HEADER STAMP PRESERVATION  (ENGINEERING_NOTES rule 4)
     raw/validated pairs matched by EXACT stamp:      903
     RESTAMPED (no matching raw stamp):                 0
     max |stamp difference| within a pair:              0 ns

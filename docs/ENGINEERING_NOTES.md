@@ -5,10 +5,6 @@ the language rules the documentation follows. Every rule below is cited by numbe
 from the code that depends on it — `grep -rn "rule 1"` finds the fail-closed gate's
 callers — so **the numbering is part of the interface and does not get reordered.**
 
-> Evidence artifacts in `results/` that were generated before this file was renamed
-> cite it as `docs/ENGINEERING_NOTES.md`. They are left exactly as the runs produced them; a report
-> is a record, and editing one to tidy a cross-reference is not a habit worth having.
-
 ---
 
 ## What this is

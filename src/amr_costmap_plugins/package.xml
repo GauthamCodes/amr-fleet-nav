@@ -9,8 +9,8 @@
     assignment's MAPF requirement (3.2) is satisfied: a robot's local planner consumes its
     peers' intentions directly rather than a central node handing out schedules.
     C++ because it runs at costmap update rate behind the pluginlib API.
-    RampCostLayer is not here: the compressed delivery plan descopes ramp cost to a costmap
-    filter mask, which the assignment permits verbatim.
+    RampCostLayer is not here: ramp cost is descoped to a costmap filter mask, which the
+    assignment permits verbatim.
   </description>
   <maintainer email="gauthamanil888@gmail.com">Gautham</maintainer>
   <license>Apache-2.0</license>

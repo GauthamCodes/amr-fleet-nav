@@ -939,7 +939,7 @@ be invisible *and* harmless. The cost simply does not appear.
 nothing — rather than proportionally. If that is right, a graded keepout mask cannot express
 "expensive but passable" at all, and the only mask value that changes a plan is the one that
 makes the ramp impassable, which `ramp_mask.MAX_MASK_VALUE` deliberately forbids. Graded
-slope cost would then need the custom `RampCostLayer` that the compressed plan cut.
+slope cost would then need the custom `RampCostLayer` that was cut from the plan.
 
 **RETRACTION — "the blocking question is settled from the source".** An earlier note recorded
 that `KeepoutFilter::process()` combines with `if (data > old_data || old_data ==

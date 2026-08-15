@@ -27,8 +27,3 @@ results/*.png
 
 # Worlds rendered from xacro at launch time.
 generated/
-
-# Local tooling: session state and the git worktrees it works in. A worktree is a
-# full checkout of this repository, so committing this directory would nest the
-# repository inside itself.
-.tooling/

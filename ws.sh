@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Workspace command wrapper.
 #
-# The environment this project targets does not reliably support inline `source` in shell
-# commands, so every workspace-aware invocation goes through this script:
+# One wrapper so that every workspace-aware invocation gets an identical
+# environment, rather than depending on what a particular shell happens to have
+# sourced:
 #
 #   ./ws.sh ros2 launch amr_gazebo smoke1.launch.py
 #

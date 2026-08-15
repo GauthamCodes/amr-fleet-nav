@@ -4,7 +4,7 @@ WHY A FILTER MASK RATHER THAN A COSTMAP LAYER
 
     The assignment permits "a custom cost function OR a tuned configuration" for the
     ramp. PLAN.md section 5's cut list puts a custom ``RampCostLayer`` above a filter
-    mask, and the compressed delivery plan takes that cut. A KeepoutFilter fed a
+    mask, and under the delivery schedule that cut was taken. A KeepoutFilter fed a
     graded mask is a tuned configuration in the assignment's own words, and it costs
     a YAML block instead of a C++ pluginlib plugin.
 

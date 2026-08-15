@@ -26,9 +26,10 @@ set(dependencies
   tf2_ros
 )
 
-# RampCostLayer is NOT here. The compressed delivery plan descopes ramp cost to a
-# costmap filter mask, which the assignment permits verbatim ("a custom cost
-# function or a tuned configuration"). See docs/DELIVERY_PLAN_COMPRESSED.md.
+# RampCostLayer is NOT here. Ramp cost is descoped to a costmap filter mask, which
+# the assignment permits verbatim ("a custom cost function or a tuned
+# configuration"). What that mask did and did not achieve is measured in
+# results/phase3_ramp_cost_graded.md and stated as a limitation in README.md §10.
 add_library(${PROJECT_NAME} SHARED
   src/fleet_trajectory_layer.cpp
 )

@@ -31,8 +31,7 @@ exclude =
     build,
     install,
     log,
-    __pycache__,
-    .tooling
+    __pycache__
 
 per-file-ignores =
     # ENGINEERING_NOTES requires docstrings on every CLASS. A pytest function named

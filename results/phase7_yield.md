@@ -49,7 +49,7 @@ PRIORITY, DERIVED FROM fleet.yaml GROSS MASS - no robot is named in code
     timeout drops the channel, so there is no release message to lose and
     an arbiter that dies releases the robot rather than pinning it.
 ------------------------------------------------------------------------------
-[C] NAV2 RECOVERY DURING THE HOLD  (docs/ENGINEERING_NOTES.md rule 2)
+[C] NAV2 RECOVERY DURING THE HOLD  (ENGINEERING_NOTES rule 2)
     recovery suppression:                           ON
     recovery behaviours fired DURING a hold:         0
     amr1, whole run:       0   

@@ -41,7 +41,7 @@ k / d_min:                1.8750 s^2/m / 0.300 m
     under use_sim_time; the compute figure is not. Low-latency safety
     override - not hard real-time: no RT kernel, no scheduling guarantee.
 ------------------------------------------------------------------------------
-[C] NAV2 RECOVERY BEHAVIOUR DURING THE HALT  (docs/ENGINEERING_NOTES.md rule 2)
+[C] NAV2 RECOVERY BEHAVIOUR DURING THE HALT  (ENGINEERING_NOTES rule 2)
     recovery behaviours, whole run:        0
     recovery behaviours fired DURING a halt:         0
         none
