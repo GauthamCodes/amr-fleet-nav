@@ -32,6 +32,20 @@ stated with the same evidence discipline as the results in §5.**
 | [`docs/ENGINEERING_NOTES.md`](docs/ENGINEERING_NOTES.md) | The eight design invariants the code cites by number |
 | [`docs/ASSIGNMENT.pdf`](docs/ASSIGNMENT.pdf) | The source requirements |
 
+**Demo recordings** — [`media/`](media/), camera following the robot throughout:
+
+| Clip | Shows |
+|---|---|
+| [`media/yield_protocol.mp4`](media/yield_protocol.mp4) | Both robots converge on one 3.0 m gap; amr2 is escalated to a yield and holds while amr1 passes |
+| [`media/yield_resolved_locally.mp4`](media/yield_resolved_locally.mp4) | The same scenario resolving **without** arbitration — the arbiter predicts the conflict and stands down |
+| [`media/safety_halt.mp4`](media/safety_halt.mp4) | The safety gate halting on a pedestrian at 8.0 ms sensor-to-zero, three times, goal still reached |
+| [`media/safety_fail_closed.mp4`](media/safety_fail_closed.mp4) | The gate **SIGKILLed at 0.35 m/s** — the robot stops in 0.189 m anyway |
+
+Each clip is a real run and ships with that run's own report in
+[`media/run_reports/`](media/run_reports/). [`media/README.md`](media/README.md) states
+where a recorded run differs from the canonical artifact in `results/` — including one
+hold that ended in a **deadlock** rather than a clean release.
+
 ---
 
 ## 1. Scope
@@ -929,6 +943,6 @@ evidence had been written — **not diagnosed**, and recorded rather than ignore
 ├── src/                    9 ROS 2 packages
 ├── tests/                  241 pure-function unit tests
 ├── results/                84 evidence artifacts — every number in this README
-├── media/                  demo video and stills
+├── media/                  demo recordings, stills, and each recording's run report
 └── docs/                   engineering log, demo runbook, plan, design invariants, assignment
 ```
