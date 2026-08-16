@@ -103,6 +103,7 @@ Captured from the verified runs described below, on the code in this repository.
 |---|---|
 | ![the warehouse with both robots](media/verified/warehouse_both_robots.png) | **The warehouse.** Rack rows either side, the ramp and upper plateau beyond, three walking pedestrians, and **both robots in the aisle** — AMR-2 amber on the left, AMR-1 blue on the right. This is what Gazebo should open to. |
 | ![cooperative mapping](media/verified/cooperative_mapping.png) | **Demo A, cooperative mapping.** Gazebo on the left, RViz on the right. `/fleet_map` covers the whole aisle with the rack bays cut out — built by both robots into one grid. |
+| ![the RViz configuration](media/verified/rviz_fleet_map_config.png) | **What to check in RViz**, with the Displays panel open: **Fixed Frame `fleet_map`**, `Global Status: Ok`, topic **`/fleet_map`**, 0.05 m resolution, **680 × 400**, origin −15 / −10. If your Fixed Frame says `map` you will get an empty window — that frame does not exist here (§5). |
 | ![the safety override](media/verified/safety_override.png) | **Demo B, the safety override.** A pedestrian has walked into AMR-1's path and the robot has stopped short of them. |
 | ![both plans in RViz](media/verified/rviz_both_plans.png) | **Both routes planned at once.** Green is AMR-1's plan, cyan is AMR-2's, both in the `fleet_map` frame, `Global Status: Ok`. See §9.1 for what happens next. |
 

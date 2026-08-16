@@ -70,6 +70,7 @@ against, and they are the images embedded in [`../HOW_TO_RUN.md`](../HOW_TO_RUN.
 |---|---|
 | `verified/warehouse_both_robots.png` | The warehouse Gazebo should open to — rack rows either side, the 8° ramp and upper plateau beyond, and **both robots in the aisle** (AMR-2 amber, AMR-1 blue) |
 | `verified/cooperative_mapping.png` | Demo A: Gazebo left, RViz right, one `/fleet_map` covering the aisle with the rack bays cut out — built by both robots into a single grid |
+| `verified/rviz_fleet_map_config.png` | The same demo with RViz's **Displays panel open**, so the configuration is legible rather than asserted: **Fixed Frame `fleet_map`**, `Global Status: Ok`, topic **`/fleet_map`**, update topic `/fleet_map_updates`, resolution 0.05 m, **680 × 400**, origin −15 / −10. Both robots are in the Gazebo view and both appear as markers on the map |
 | `verified/rviz_both_plans.png` | Both routes planned at once in the `fleet_map` frame, green for AMR-1 and cyan for AMR-2, `Global Status: Ok`. What happens *after* this is §9.1 of HOW_TO_RUN |
 | `verified/safety_override.png` | Demo B: a pedestrian has walked into AMR-1's path and the robot has stopped short of them |
 
