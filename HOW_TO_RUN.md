@@ -149,8 +149,16 @@ check `./ws.sh ros2 topic echo /fleet_map --once` returns a 680×400 grid.
 
 **Takes:** 4–6 minutes. Stops itself.
 
-**Verified:** map covered the full aisle; amr1 contributed 13 accepted updates and
-amr2 61 in a single run.
+**Verified:** the map grows from empty to covering the full aisle, and **both robots
+appear in the `ACCEPT` stream of the same run** — that is the proof of cooperative
+mapping, and it is what to check. **The per-run counts vary** and are not a result to
+quote: three runs on the same command gave amr1/amr2 accepted counts of 41/38, 12/22
+and 15/65, because the score depends on where each robot happens to be when a scan
+lands. The figure to cite is the committed one in
+`results/phase3_selective_updates.md` — **41 scored, 23 accepted, 18 deferred
+(43.9 %)**, amr1 13/8 and amr2 10/10. This run's own artifact
+(`results/fleet_survey_updates.md`) is git-ignored precisely so it cannot be mistaken
+for that.
 
 ---
 
@@ -385,11 +393,12 @@ before that is expected.
 ## 6. Where the results are
 
 ```bash
-ls results/                                  # ~75 evidence files
-cat results/phase2_safety_suppressed.md      # the safety stops and their timing
-cat results/phase3_selective_updates.md      # which map updates were kept or skipped
-cat results/phase7_yield.md                  # the yield decisions
-cat results/phase3_concurrent_goals.md       # see §9 before reading this one
+ls results/                                       # 78 evidence files
+cat results/phase2_safety_suppressed.md           # the safety stops and their timing
+cat results/phase3_selective_updates.md           # which map updates were kept or skipped
+cat results/phase7_yield.md                       # the yield decisions
+cat results/phase3_concurrent_goals_current.md    # what two goals do TODAY - read §9.1
+cat results/phase3_concurrent_goals.md            # HISTORICAL - see §9.1 first
 ```
 
 Short clips of real runs are in [`media/`](media/), each with its run report in
@@ -444,9 +453,11 @@ repeatedly, never translates more than about 2 m, and `bt_navigator` aborts with
 | default | SUCCEEDED 18.8–19.5 s | ABORTED, ≤ 0.6 m driven |
 | `with_motion_chain:=false` | ABORTED, 2.0 m | SUCCEEDED 11.6 s |
 
-Reproduced in 8 consecutive runs. **Not** caused by the pedestrians, the Gazebo GUI,
-the trajectory layer on its own, or the safety gate — each was ruled out by running
-with it disabled.
+Reproduced in 9 consecutive runs, the most recent against a from-scratch build of this
+commit — that run is committed as `results/phase3_concurrent_goals_current.md` (amr1
+SUCCEEDED in 18.7 s having driven 10.52 m; amr2 ABORTED having driven 0.07 m). **Not**
+caused by the pedestrians, the Gazebo GUI, the trajectory layer on its own, or the
+safety gate — each was ruled out by running with it disabled.
 
 `results/phase3_concurrent_goals.md` shows **both** robots succeeding at 18.8 s and
 11.3 s. That artifact was measured before the payload motion chain and the fleet
@@ -502,5 +513,15 @@ Partial or not demonstrated: §9.
 
 ## The video
 
-The submission video is delivered separately and is deliberately **not** stored in
-this repository.
+The submission screenshare is delivered separately and is deliberately **not** stored
+in this repository. It runs **3 min 22 s** and covers, in order: the warehouse and
+both robots · cooperative mapping with `/fleet_map` growing live in RViz · the
+selective-update result · concurrent goals, including the failure in §9.1 shown rather
+than cut · payload-adaptive motion · the safety override stopping the robot on a
+pedestrian · the yield protocol · IMU validation · the architecture and the
+limitations above.
+
+Every scene is real footage from a run of the commands on this page, except the yield,
+which is the archived run in [`media/yield_protocol.mp4`](media/yield_protocol.mp4) and
+is captioned as archived — three fresh attempts did not escalate, which is the
+non-determinism §9 describes.

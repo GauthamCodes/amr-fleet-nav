@@ -59,6 +59,20 @@ which the local layer resolved everything is not a failed run. Together with the
 above this is the **local-first ordering** as data: central arbitration is what happens
 *after* the local layer has failed, not instead of it.
 
+## Verified stills — what a working run looks like
+
+`verified/` holds four frames taken from runs that were launched from the documented
+command, watched in Gazebo and RViz, and confirmed to match what the documentation
+says they should show. They are the reference an evaluator can hold their own run
+against, and they are the images embedded in [`../HOW_TO_RUN.md`](../HOW_TO_RUN.md) §4.
+
+| File | Shows |
+|---|---|
+| `verified/warehouse_both_robots.png` | The warehouse Gazebo should open to — rack rows either side, the 8° ramp and upper plateau beyond, and **both robots in the aisle** (AMR-2 amber, AMR-1 blue) |
+| `verified/cooperative_mapping.png` | Demo A: Gazebo left, RViz right, one `/fleet_map` covering the aisle with the rack bays cut out — built by both robots into a single grid |
+| `verified/rviz_both_plans.png` | Both routes planned at once in the `fleet_map` frame, green for AMR-1 and cyan for AMR-2, `Global Status: Ok`. What happens *after* this is §9.1 of HOW_TO_RUN |
+| `verified/safety_override.png` | Demo B: a pedestrian has walked into AMR-1's path and the robot has stopped short of them |
+
 ## Stills
 
 | File | Shows |

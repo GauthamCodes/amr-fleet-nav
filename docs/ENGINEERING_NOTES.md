@@ -25,9 +25,12 @@ smoothing, conflict-aware local planning, and a low-latency safety override.
 - The repository root **is** the colcon workspace; packages live in `src/`
 - Build: `colcon build --symlink-install` from the repository root
 - Every ROS or Gazebo command goes through `./ws.sh`, which sources the workspace
-  and **appends** to `CYCLONEDDS_URI` rather than overwriting it. A two-robot graph
-  is 53 DDS participants against a default ceiling of 9; see `docs/DEMO_RUNBOOK.md`
-  §2 for the failure that ceiling produces and why it looks like a namespacing bug.
+  and **appends** to `CYCLONEDDS_URI` rather than overwriting it. The ceiling it
+  raises is on DDS **participants**, not nodes: a two-robot `fleet_nav` is 65 unique
+  node names but 111 `ros2 node list` entries, and `phase7_yield` adds more on top.
+  The default ceiling is 9 and this repository sets 400; see
+  `src/amr_bringup/config/cyclonedds.xml` for why 120 was tried and was not enough,
+  and `docs/DEMO_RUNBOOK.md` §0 for why the failure looks like a namespacing bug.
 - Target GPU has 6 GB of VRAM — Gazebo scenes stay light, no imported meshes.
 
 ---

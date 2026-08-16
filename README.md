@@ -20,7 +20,7 @@ stated with the same evidence discipline as the results in §5.**
 | **Languages** | Python (PEP 8, flake8 + black) · C++ (Google style) where measured latency justifies it |
 | **Packages** | 9, all namespaced, all configuration-driven |
 | **Tests** | 241 unit tests, pure functions, no simulator required |
-| **Evidence** | 75 artifacts in [`results/`](results/) |
+| **Evidence** | 78 artifacts in [`results/`](results/) |
 
 **Documentation map**
 
@@ -31,6 +31,30 @@ stated with the same evidence discipline as the results in §5.**
 | [`docs/ENGINEERING_NOTES.md`](docs/ENGINEERING_NOTES.md) | The eight design invariants the code cites by number |
 | [`docs/ASSIGNMENT.pdf`](docs/ASSIGNMENT.pdf) | The source requirements |
 | [`media/README.md`](media/README.md) | What each recorded clip shows, and where a recorded run differs from the canonical artifact |
+
+**Status at a glance.** One line per assignment requirement, so the shape of the
+submission is visible before any of the detail. `DEMONSTRATED` means the behaviour was
+observed and measured, not merely built; `PARTIAL` and `NOT DEMONSTRATED` mean exactly
+what they say. The evidence for every row is in [§4](#4-requirement--implementation--evidence),
+and every shortfall is in [§10](#10-known-limitations).
+
+| # | Requirement | Status |
+|---|---|---|
+| 1 | Heterogeneous AMR-1 / AMR-2 in a warehouse with racks, ramp, unknown areas, dynamic obstacles | **DEMONSTRATED** |
+| 2 | Cooperative global mapping into one unified fleet map | **DEMONSTRATED** |
+| 3 | Selective map updates | **DEMONSTRATED** |
+| 4 | Concurrent navigation goals | **PARTIAL** — dispatch, planning and tracking demonstrated; **only one robot arrives** |
+| 5 | Ramp-aware global planning | **PARTIAL** — mask mechanism implemented and loaded; graded cost and the route A/B **not demonstrated** |
+| 6 | Payload-aware acceleration / jerk control | **DEMONSTRATED** for the payload response; jerk ceiling **not certified** |
+| 7 | MAPF / peer trajectory in the local planner | **IMPLEMENTED**, cost injection measured against a control; autonomous mutual deviation **NOT DEMONSTRATED** |
+| 8 | Predefined traffic-control yielding | **DEMONSTRATED**; the escalation trigger is non-deterministic |
+| 9 | Low-level safety override, speed-dependent distance | **DEMONSTRATED** |
+| 10 | BSP / sensor validation, IMU plausibility | **DEMONSTRATED** |
+| 11 | Configuration-driven scalability to ten or more robots | **IMPLEMENTED** by construction and test; **no 10-robot run was performed** |
+| 12 | Clean ROS 2 workspace, code quality | **DEMONSTRATED** |
+| 13 | Refactoring — plan and implement part of it | **DEMONSTRATED** |
+| 14 | README and run instructions | **DEMONSTRATED** |
+| 15 | Screenshare demonstration | **DEMONSTRATED**, delivered separately |
 
 **Demo recordings** — [`media/`](media/), camera following the robot throughout:
 
@@ -46,13 +70,14 @@ Each clip is a real run and ships with that run's own report in
 where a recorded run differs from the canonical artifact in `results/` — including one
 hold that ended in a **deadlock** rather than a clean release.
 
-**The submission screenshare video is delivered separately and is deliberately not in
-this repository** — `videos/amr_fleet_nav_submission.mp4`, 9 min 24 s, a walkthrough of
-the warehouse and fleet, the architecture, cooperative mapping and selective updates
-live in RViz, simultaneous goals with pedestrians, the ramp and MAPF limitations stated
-plainly, the yield protocol, the safety override, sensor validation, and scalability.
-`videos/` is kept as the place to record into, and `*.mp4` / `*.mkv` / `*.webm` are
-git-ignored apart from the four short evidence clips above.
+**The submission screenshare is delivered separately with the submission and is
+deliberately not in this repository.** It is a short demonstration — the warehouse and
+both robots, cooperative mapping and selective updates live in RViz, concurrent goals
+with the current failure shown rather than cut, payload-adaptive motion, the safety
+override stopping the robot on a pedestrian, the yield protocol, sensor validation,
+and the architecture with the limitations of §10 stated on screen. `videos/` is kept
+as the place to record into, and `*.mp4` / `*.mkv` / `*.webm` are git-ignored apart
+from the four short evidence clips above.
 
 ---
 
@@ -119,9 +144,11 @@ Both robots drive the same circuit half a lap apart and `/fleet_map` fills in fr
 both ends of the aisle at once. Toggle *amr1 own map* and *amr2 own map* in the
 Displays panel to show the composite really is a fusion of two maps.
 
-**To see both robots navigate to concurrent goals**, use the fleet with a mission
+**To see concurrent goals dispatched to both robots**, use the fleet with a mission
 attached — it dispatches both goals in one pass, writes its report into `results/`
-and shuts itself down:
+and shuts itself down. **Read [§10](#10-known-limitations) first: both goals are
+dispatched and both routes are planned, but only one robot arrives.** That is a known
+open defect, not a setup mistake on your side:
 
 ```bash
 ./scripts/clean_processes.sh
@@ -137,11 +164,17 @@ committed Phase 3 evidence, which was measured without them.
 
 1. **Every ROS or Gazebo command goes through `./ws.sh` — including `rviz2`.** The
    wrapper sources the workspace and *appends* to `CYCLONEDDS_URI`, raising
-   CycloneDDS's `MaxAutoParticipantIndex` from 9 to 120. A two-robot graph is **53
-   DDS participants**. Past the default ceiling, node creation throws `Failed to find
-   a free participant index for domain 0` and six of *amr2's* Nav2 servers die while
-   amr1 comes up perfectly — which reads exactly like a namespacing bug in the second
-   robot and is a host-wide limit. See [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §0.
+   CycloneDDS's `MaxAutoParticipantIndex` from its default of 9 to **400**. The count
+   that matters is **participants, not nodes**: a two-robot `fleet_nav` is 65 unique
+   node names but `ros2 node list` returns **111 entries**, because several nodes
+   advertise from more than one participant. Past the ceiling, node creation throws
+   `Failed to find a free participant index for domain 0` and whichever servers
+   started last die while the rest of the fleet comes up perfectly — which reads
+   exactly like a namespacing bug in one robot and is a host-wide limit. **This was
+   set to 120 and that was not enough**: `phase7_yield` adds RViz, the arbiter, the
+   mission node and both trajectory predictors and crossed it, killing nine nodes.
+   See [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §0 and the comment in
+   `src/amr_bringup/config/cyclonedds.xml`.
 
 2. **Run `./scripts/clean_processes.sh` before every launch.** It kills the simulator
    and the ROS graph, then prints the surviving process table and exits non-zero if
@@ -357,16 +390,16 @@ from what was measured, not from what was built** — three rows below say a cla
 | § | Requirement | Implementation | Evidence | Status |
 |---|---|---|---|---|
 | **1** | Heterogeneous fleet (AMR-1 mapper/lead higher payload; AMR-2 scout/follower higher acceleration) in a multi-level Gazebo warehouse with racks, ramp and dynamic obstacles | `amr_description/config/fleet.yaml` — one typed robot list; one shared `amr.urdf.xacro`; `amr_gazebo` warehouse with 8° ramp, two plateaus, rack rows, walking actors | `results/smoke1_actor_visibility.md`, `results/smoke2_ramp_phantom_return.md`, `results/phase1_map.png` | **Verified.** Actors raycast by the LiDAR and reach **254 LETHAL in the Nav2 costmap in 100 % of frames**; ramp max pitch **8.001°**; amr1 90.0 kg / 0.60 m/s vs amr2 23.0 kg / 1.00 m/s, both from the one file |
-| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 65 unique nodes, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m origin (−15, −10), TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps**. Re-verified live: both robots contributed accepted map updates in the same run (amr1 13, amr2 61) |
+| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 65 unique nodes, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m origin (−15, −10), TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps**. Re-verified live in RViz: one `/fleet_map` grows from both ends at once and **both robots appear in the `ACCEPT` stream of the same run** — the per-robot split is in `results/phase3_selective_updates.md` (amr1 13 accepted, amr2 10) |
 | **2.1b** | **Selective mapping** — prioritise unexplored boundaries, reduce update frequency for repeatedly traversed areas | Scored policy in `fleet_map_node.py`: `w_f·frontier + w_c·change + w_r·recency − w_v·revisit`; below threshold the merge *and* the composite work are skipped | `results/phase3_selective_updates.md` + `.csv` | **Verified.** **41 candidates scored, 23 accepted, 18 deferred (43.9 %)**, measured while both robots were exploring. Per robot: amr1 13/8, amr2 10/10 |
-| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals.md`, `_separation.csv` | **Partial — concurrent dispatch, planning and tracking verified; both robots ARRIVING no longer reproduces.** Both goals are accepted, both plans are published in `fleet_map`, and separation is recorded over both trajectories. But in the shipped configuration **only one robot reaches its goal** — the other aborts on `Failed to make progress` — reproduced in 8 consecutive runs. The committed artifact showing both SUCCEEDED (18.8 s / 11.3 s) predates the motion chain and the trajectory layer and is **historical**. See §10 |
+| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals_current.md` (current behaviour) against `results/phase3_concurrent_goals.md` (historical) | **Partial — concurrent dispatch, planning and tracking verified; both robots ARRIVING no longer reproduces.** Both goals are accepted, both plans are published in `fleet_map`, and separation is recorded over both trajectories. But in the shipped configuration **only one robot reaches its goal** — the other aborts on `Failed to make progress` — reproduced in **9 consecutive runs**, the most recent against a from-scratch build of this commit. The committed artifact showing both SUCCEEDED (18.8 s / 11.3 s) predates the motion chain and the trajectory layer and is **historical**. See §10 |
 | **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60) against `results/phase3_concurrent_goals.md` (null-mask arm) | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
 | **3.1** | Dynamic velocity and motion smoothing — acceleration and jerk limited by dynamic state and payload; the heavier AMR-1 must have lower acceleration limits than AMR-2 | Stock `nav2_velocity_smoother` **chained into** `amr_motion/payload_jerk_adapter.py`; per-robot limits from `fleet.yaml`, scaled down by payload state, never up | `results/phase5_payload_trace.md`, `.csv`, **`.png`** | **Verified for the payload ratio; jerk ceiling NOT certified.** amr1's peak commanded acceleration falls **×0.38** loaded against amr2's **×0.85**, and **no code distinguishes them**. Peak commanded velocity exactly 0.500 in all four cases. The published stream measures up to ~1.9× the configured jerk bound (§10) |
 | **3.2a** | **MAPF element** — the local planner for **each robot** consumes the **projected trajectory of the other robot** | `amr_fleet_control/trajectory_predictor.py` publishes each robot's projected path; `amr_costmap_plugins` `FleetTrajectoryLayer` (C++ pluginlib) deposits `max_cost·exp(−Δt/τ)` into the **other** robot's LOCAL costmap, combined with `std::max` | `results/phase6_cost_injection_layer_on.md` vs `..._off.md` (+ `.csv`) | **Mechanism verified against a control; autonomous mutual deviation NOT claimed.** At the peer's *predicted* cell 2 s ahead: **50/50 samples cost > 0 (100 %) with the layer, 0/59 (0 %) without**; median cost 145, max 240, decay model predicts 125.9. RegulatedPurePursuit paces against that cost rather than deviating laterally (§10) |
 | **3.2b** | Yielding protocol — Traffic Control Node enforces a **pre-defined** yield (lighter AMR-2 yields to heavier AMR-1) by commanding a temporary controlled stop | `amr_fleet_control/traffic_control.py`; yield = zero twist on the **priority-150** `cmd_vel_yield` mux channel; release by *ceasing to publish* (mux timeout), so a dead arbiter frees the robot rather than pinning it | `results/phase7_yield.md`, `phase7_yield_mission.md`, `phase7_yield_control.md` | **Verified.** Two escalations, **amr2 yielded both times**, held **1.0 s and 15.2 s**, both released on *conflict cleared* (never the 45 s fail-safe). **0 recovery behaviours during either hold**; SafetyGate blocking on **0 of 326 held cycles**, so the stop was the arbiter's alone. **Both goals SUCCEEDED.** Priority derived from `fleet.yaml` mass, not from a robot name |
 | **3.3** | Safety system override — dedicated node monitoring local obstacle detection; below `d_safe = k·v² + d_min` issue a low-level, high-priority **immediate halt that overrides** the navigation stack | `amr_safety` `SafetyGate` (C++), serial last link, fail-closed, `v` from **odometry** not command, per-robot payload-scaled `k`, hysteresis on release | `results/phase2_safety_suppressed.md`, `phase2_stopping_distance.md`, `phase2_failclosed_*.md` | **Verified.** Goal SUCCEEDED with **3 halts and 0 commands leaked past the latch**. Sensor stamp → zero command published: **mean 8.46 ms / p95 11.00 ms / max 12.00 ms** (in-node compute 151/226/711 µs). Stopping sweep at four speeds. Fail-closed under SIGKILL: **0.196 m vs 3.500 m** |
 | **4.1** | Validated data consumption (BSP instead of a HAL) — nav stack consumes sensor data only after validation; **log a warning when IMU angular velocity exceeds a plausible limit** | `amr_bsp`: `SensorBSP` base + `ImuValidator`, `LidarValidator`, `CameraValidator`, plus `PitchGate` doing functional work (ramp ground-return truncation). Original header stamps preserved | `results/phase2_imu_injection.md`, `phase2_pitch_gate.md` + `.png` + `.csv`, `phase2_camera.md` | **Verified.** **500 implausible samples injected at 50 rad/s against a 4.0 rad/s bound → 500 rejected, 0 reached `validated/imu`**, while **3 194 healthy samples were accepted** around the window. Stamp preservation: **903 raw/validated pairs matched by exact stamp, 0 restamped, max difference 0 ns**. PitchGate removed the 2.769 m phantom and **kept the 2.732 m real rack** |
-| **4.2** | Code quality and scalability — cleanly namespaced, reusable class structure, fleet expandable to **ten or more robots by changing a minimal number of configuration parameters** | Every component is a namespaced, config-driven class. `fleet.yaml` is the only place a robot difference is expressed; launch files loop over it. `cyclonedds.xml` raises the participant ceiling to 120 — room for ten robots | §8 below; `tests/test_fleet_parameterization.py`, `test_fleet_frames.py`, `test_spawn_poses_are_clear.py` | **Verified by construction and by test; a 10-robot run was not performed.** `grep -rn "amr1" src/` finds no behavioural branch — **zero `if robot ==` in the codebase**. Adding `amr3` is one YAML block and **no launch code change** (§8) |
+| **4.2** | Code quality and scalability — cleanly namespaced, reusable class structure, fleet expandable to **ten or more robots by changing a minimal number of configuration parameters** | Every component is a namespaced, config-driven class. `fleet.yaml` is the only place a robot difference is expressed; launch files loop over it. `cyclonedds.xml` raises the participant ceiling to 400 — far above the ten-robot case | §8 below; `tests/test_fleet_parameterization.py`, `test_fleet_frames.py`, `test_spawn_poses_are_clear.py` | **Verified by construction and by test; a 10-robot run was not performed.** `grep -rn "amr1" src/` finds no behavioural branch — **zero `if robot ==` in the codebase**. Adding `amr3` is one YAML block and **no launch code change** (§8) |
 | **5.1** | Environment setup and build — complete documented README, proper colcon workspace, clean build, screenshare video | This README; repository root **is** the colcon workspace; `ws.sh` pins the environment; `scripts/clean_processes.sh` | `./ws.sh colcon build --symlink-install` → **9 packages, 0 errors**; `media/` (video + stills); [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) | **Verified.** Build clean from scratch; 241 tests pass; every demo has a single self-terminating launch command |
 | **5.2** | Code refactoring — identify one area of the standard ROS navigation / Gazebo launch files, propose a refactoring plan, **implement a small part of it** | Monolithic single-robot bringup split into world singletons (`amr_gazebo.spawn.world_actions`) + a reusable per-robot `robot_stack.launch.py` + two thin compositions | §9 below (before/after tree); `src/amr_bringup/launch/` | **Verified — implemented, not just proposed.** The 180-line monolith became a 222-line reusable stack included by both a 179-line single-robot and a 277-line fleet composition; the fleet's only fleet-aware code is one `for` loop |
 
@@ -768,7 +801,7 @@ What follows automatically from that one block:
 | Velocity, acceleration and jerk limits, loaded and unloaded | `PayloadJerkAdapter`, per robot |
 | Its trajectory published to, and consumed by, every peer's local costmap | `TrajectoryPredictor` + `FleetTrajectoryLayer` |
 | Its place in the yield order | gross mass 23.0 kg — it yields to amr1, ties with amr2 broken by declaration order |
-| DDS capacity | `cyclonedds.xml` already allows 120 participants ≈ **ten robots** |
+| DDS capacity | `cyclonedds.xml` already allows **400** participants — chosen to sit far above the ten-robot case rather than tuned to just clear the largest configuration this repository launches |
 
 **Stated precisely: this is configuration-driven scaling, not free scaling.** It is an
 edit to one file, which is bounded, not zero. Three constraints are real and worth
@@ -891,7 +924,10 @@ everything else.
 > | as shipped | SUCCEEDED 18.8–19.5 s | ABORTED, ≤ 0.6 m driven |
 > | `with_motion_chain:=false` | ABORTED, 2.0 m driven | SUCCEEDED 11.6 s |
 >
-> Reproduced in **8 consecutive runs**. Ruled out by running with each disabled in
+> Reproduced in **9 consecutive runs** — the most recent against a from-scratch build
+> of this commit, recorded in **`results/phase3_concurrent_goals_current.md`** (amr1
+> SUCCEEDED 18.7 s / 10.52 m driven / 0.020 m final error; amr2 ABORTED after 0.07 m).
+> Ruled out by running with each disabled in
 > turn: the pedestrians, the Gazebo GUI and its real-time factor, the fleet
 > trajectory layer on its own, and SafetyGate — which never fires during the stall.
 > The shaping limiter was also driven offline with each robot's real limits and
