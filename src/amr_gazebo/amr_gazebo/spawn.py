@@ -265,6 +265,28 @@ def gz_server(world_sdf_path, headless=True):
     )
 
 
+def gui_camera():
+    """Return the action that frames the aisle in the Gazebo GUI.
+
+    Gazebo opens looking at the world origin, which here is bare floor in front of the
+    ramp - both robots spawn eleven metres behind that, out of shot. Anyone running a
+    demo with ``headless:=false`` therefore sees an empty warehouse and reasonably
+    concludes nothing spawned. This asks the GUI to look down the aisle instead.
+
+    It is a plain process rather than part of the world file because SDFormat's
+    ``<gui>`` element REPLACES Gazebo's default GUI configuration rather than adding
+    to it: setting a camera pose there means vendoring a copy of the distribution's
+    gui.config, and losing the entity tree and the playback controls if it ever drifts
+    from the installed version. The script exits 0 whether or not the service answers.
+    """
+    share = get_package_share_directory("amr_gazebo")
+    prefix = os.path.dirname(os.path.dirname(share))
+    return ExecuteProcess(
+        cmd=[os.path.join(prefix, "lib", "amr_gazebo", "gui_camera.py")],
+        output="log",
+    )
+
+
 def world_actions(mappings=None, headless=True, out_name="warehouse_nav.sdf"):
     """Return the world-singleton actions, plus the rendered world's name and path.
 
@@ -300,8 +322,7 @@ def world_actions(mappings=None, headless=True, out_name="warehouse_nav.sdf"):
         out_name=out_name,
     )
     world_name = world_name_of(world_sdf)
-    return (
-        [gz_server(world_sdf, headless=headless), clock_bridge()],
-        world_name,
-        world_sdf,
-    )
+    actions = [gz_server(world_sdf, headless=headless), clock_bridge()]
+    if not headless:
+        actions.append(gui_camera())
+    return (actions, world_name, world_sdf)

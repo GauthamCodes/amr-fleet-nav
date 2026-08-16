@@ -97,6 +97,13 @@ def _setup(context, *args, **kwargs):
             "ramp_mask_value": LaunchConfiguration("ramp_mask_value"),
             "rviz": LaunchConfiguration("rviz"),
             "rviz_config": LaunchConfiguration("rviz_config"),
+            # Forwarded so this run can be its own control. Both default to the
+            # value fleet_nav already used, so the committed artifacts are
+            # unaffected; overriding either one is how the A/B arms are staged
+            # without editing a launch file to run an experiment.
+            "with_trajectory_layer": LaunchConfiguration("with_trajectory_layer"),
+            "suppress_recovery": LaunchConfiguration("suppress_recovery"),
+            "with_motion_chain": LaunchConfiguration("with_motion_chain"),
         }.items(),
     )
 
@@ -135,6 +142,28 @@ def generate_launch_description():
             DeclareLaunchArgument("headless", default_value="true"),
             DeclareLaunchArgument("with_actors", default_value="false"),
             DeclareLaunchArgument("tag", default_value=DEFAULT_TAG),
+            DeclareLaunchArgument(
+                "with_trajectory_layer",
+                default_value="true",
+                description="Load FleetTrajectoryLayer into every robot's local "
+                "costmap. false is the control arm: each robot then plans as if "
+                "the other one were not there.",
+            ),
+            DeclareLaunchArgument(
+                "with_motion_chain",
+                default_value="true",
+                description="Insert the payload-adaptive motion chain between Nav2 "
+                "and SafetyGate. false restores the Phase 1/2 wiring, which is the "
+                "configuration this run's committed artifact was measured in - the "
+                "chain did not exist yet when Phase 3 was recorded.",
+            ),
+            DeclareLaunchArgument(
+                "suppress_recovery",
+                default_value="true",
+                description="Hold Nav2's progress checker off while SafetyGate has "
+                "the robot latched, so a safety stop is not mistaken for being "
+                "stuck. false lets Nav2 run its normal recovery behaviours.",
+            ),
             DeclareLaunchArgument(
                 "ramp_mask_value",
                 default_value="0.0",

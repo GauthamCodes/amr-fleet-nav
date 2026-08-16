@@ -357,9 +357,9 @@ from what was measured, not from what was built** — three rows below say a cla
 | § | Requirement | Implementation | Evidence | Status |
 |---|---|---|---|---|
 | **1** | Heterogeneous fleet (AMR-1 mapper/lead higher payload; AMR-2 scout/follower higher acceleration) in a multi-level Gazebo warehouse with racks, ramp and dynamic obstacles | `amr_description/config/fleet.yaml` — one typed robot list; one shared `amr.urdf.xacro`; `amr_gazebo` warehouse with 8° ramp, two plateaus, rack rows, walking actors | `results/smoke1_actor_visibility.md`, `results/smoke2_ramp_phantom_return.md`, `results/phase1_map.png` | **Verified.** Actors raycast by the LiDAR and reach **254 LETHAL in the Nav2 costmap in 100 % of frames**; ramp max pitch **8.001°**; amr1 90.0 kg / 0.60 m/s vs amr2 23.0 kg / 1.00 m/s, both from the one file |
-| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 53-node graph, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m, TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps** |
+| **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 65 unique nodes, every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m origin (−15, −10), TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps**. Re-verified live: both robots contributed accepted map updates in the same run (amr1 13, amr2 61) |
 | **2.1b** | **Selective mapping** — prioritise unexplored boundaries, reduce update frequency for repeatedly traversed areas | Scored policy in `fleet_map_node.py`: `w_f·frontier + w_c·change + w_r·recency − w_v·revisit`; below threshold the merge *and* the composite work are skipped | `results/phase3_selective_updates.md` + `.csv` | **Verified.** **41 candidates scored, 23 accepted, 18 deferred (43.9 %)**, measured while both robots were exploring. Per robot: amr1 13/8, amr2 10/10 |
-| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals.md`, `_separation.csv` | **Verified.** **Both goals SUCCEEDED** — amr1 18.8 s, amr2 11.3 s; final errors 0.062 / 0.042 m; closest approach 3.000 m over 2 180 samples |
+| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals.md`, `_separation.csv` | **Partial — concurrent dispatch, planning and tracking verified; both robots ARRIVING no longer reproduces.** Both goals are accepted, both plans are published in `fleet_map`, and separation is recorded over both trajectories. But in the shipped configuration **only one robot reaches its goal** — the other aborts on `Failed to make progress` — reproduced in 8 consecutive runs. The committed artifact showing both SUCCEEDED (18.8 s / 11.3 s) predates the motion chain and the trajectory layer and is **historical**. See §10 |
 | **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60) against `results/phase3_concurrent_goals.md` (null-mask arm) | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
 | **3.1** | Dynamic velocity and motion smoothing — acceleration and jerk limited by dynamic state and payload; the heavier AMR-1 must have lower acceleration limits than AMR-2 | Stock `nav2_velocity_smoother` **chained into** `amr_motion/payload_jerk_adapter.py`; per-robot limits from `fleet.yaml`, scaled down by payload state, never up | `results/phase5_payload_trace.md`, `.csv`, **`.png`** | **Verified for the payload ratio; jerk ceiling NOT certified.** amr1's peak commanded acceleration falls **×0.38** loaded against amr2's **×0.85**, and **no code distinguishes them**. Peak commanded velocity exactly 0.500 in all four cases. The published stream measures up to ~1.9× the configured jerk bound (§10) |
 | **3.2a** | **MAPF element** — the local planner for **each robot** consumes the **projected trajectory of the other robot** | `amr_fleet_control/trajectory_predictor.py` publishes each robot's projected path; `amr_costmap_plugins` `FleetTrajectoryLayer` (C++ pluginlib) deposits `max_cost·exp(−Δt/τ)` into the **other** robot's LOCAL costmap, combined with `std::max` | `results/phase6_cost_injection_layer_on.md` vs `..._off.md` (+ `.csv`) | **Mechanism verified against a control; autonomous mutual deviation NOT claimed.** At the peer's *predicted* cell 2 s ahead: **50/50 samples cost > 0 (100 %) with the layer, 0/59 (0 %) without**; median cost 145, max 240, decay model predicts 125.9. RegulatedPurePursuit paces against that cost rather than deviating laterally (§10) |
@@ -879,6 +879,36 @@ measuring what it claims to.
 
 Stated plainly, each with its evidence. A reader who catches an overclaim discounts
 everything else.
+
+> ### Read this first: the two-robot concurrent-goal run no longer completes
+>
+> **Only one of the two robots reaches its goal.** The other plans a full 10.5 m path
+> repeatedly, never translates more than about 2 m, and `bt_navigator` aborts with
+> `Failed to make progress`. Which robot loses depends on the configuration:
+>
+> | configuration | AMR-1 | AMR-2 |
+> |---|---|---|
+> | as shipped | SUCCEEDED 18.8–19.5 s | ABORTED, ≤ 0.6 m driven |
+> | `with_motion_chain:=false` | ABORTED, 2.0 m driven | SUCCEEDED 11.6 s |
+>
+> Reproduced in **8 consecutive runs**. Ruled out by running with each disabled in
+> turn: the pedestrians, the Gazebo GUI and its real-time factor, the fleet
+> trajectory layer on its own, and SafetyGate — which never fires during the stall.
+> The shaping limiter was also driven offline with each robot's real limits and
+> reaches its commanded speed correctly, so the arithmetic is not at fault.
+>
+> **`results/phase3_concurrent_goals.md` shows both robots succeeding, at 18.8 s and
+> 11.3 s.** That artifact was measured at commit `8ae594e`, **before** the payload
+> motion chain (`ff8816f`) and the fleet trajectory layer (`b6f03e3`) were added, and
+> no run since reproduces it. Whichever robot does complete reproduces its own
+> committed time almost exactly, so the numbers in that file are real measurements —
+> but **the configuration that produced them is not the configuration that ships.**
+> Treat that artifact as historical, not as current behaviour.
+>
+> Simultaneous **dispatch, planning and tracking** of both robots is still
+> demonstrated — both goals are accepted, both plans are published in `fleet_map` and
+> drawn in RViz, and the separation metric is recorded over both trajectories. What
+> is **not** demonstrated is both robots *arriving*.
 
 **1. The ramp A/B specified in the plan cannot be staged in this world.** The
 experiment — *a flat alternative exists → the ramp is avoided; the flat route is

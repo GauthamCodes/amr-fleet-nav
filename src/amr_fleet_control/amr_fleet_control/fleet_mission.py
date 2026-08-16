@@ -40,6 +40,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from tf2_msgs.msg import TFMessage
 
+from amr_bsp.nav2_readiness import Nav2Readiness
 from amr_description.fleet_config import load_fleet
 from amr_fleet_control.fleet_grid import FLEET_FRAME, RAMP_REGION
 
@@ -172,6 +173,11 @@ class FleetMission(Node):
                 Path, f"/{name}/plan", lambda msg, n=name: self._on_plan(n, msg), 10
             )
             self.runs[name] = run
+
+        # Readiness, which is NOT the same question as "does the action server
+        # exist". See amr_bsp.nav2_readiness for why wait_for_server() is not enough
+        # and what dispatching into that window looked like.
+        self.readiness = Nav2Readiness(self, list(self.runs))
 
         # Both robots' bridges remap their model pose onto this one topic, so it
         # carries an interleaved stream and every consumer filters by child_frame_id.
@@ -327,10 +333,28 @@ class FleetMission(Node):
 
     # -------------------------------------------------------------------- state
 
+    def _give_up_waiting(self, why):
+        """Abandon the wait for navigation and report what was recorded."""
+        for run in self.runs.values():
+            if run.status == "PENDING":
+                run.status = "TIMEOUT"
+                run.finished_at = self.now_s()
+        self.get_logger().error(why)
+        self.state = "lingering"
+        self.finished_at = self.now_s()
+
     def _tick(self):
         elapsed = self.now_s() - self.started
         if self.state == "waiting":
             if elapsed < self.start_delay:
+                return
+            # Bounded, so that a stack which never comes up still writes a report
+            # rather than leaving the launch hanging with nothing on disk.
+            if elapsed > self.timeout:
+                self._give_up_waiting(
+                    "navigation never reached the ACTIVE state; "
+                    "reporting what was recorded"
+                )
                 return
             missing = [
                 r.name
@@ -340,6 +364,13 @@ class FleetMission(Node):
             if missing:
                 self.get_logger().info(
                     f"waiting for navigate_to_pose: {missing}",
+                    throttle_duration_sec=5.0,
+                )
+                return
+            if not self.readiness.all_active():
+                self.get_logger().info(
+                    "navigate_to_pose is up; waiting for bt_navigator to activate on "
+                    f"{self.readiness.pending}",
                     throttle_duration_sec=5.0,
                 )
                 return

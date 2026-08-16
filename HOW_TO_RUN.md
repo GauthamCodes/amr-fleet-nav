@@ -1,17 +1,17 @@
-# How to Run — a step-by-step guide
+# How to Run — the evaluator's guide
 
-This file is for someone opening this repository for the first time. It lists
-**every command you need, in order, and says what each one does.**
+Everything you need, in order. Each demo below tells you the **exact command**, what
+**Gazebo** and **RViz** should show, how you know it **worked**, and what to check if
+it did not.
 
-You do not need to read the code to follow this. If you only have ten minutes,
-do Part 1 and then Scenario A.
-
-- Deeper per-scenario detail: [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)
-- What the system is and what was measured: [`README.md`](README.md)
+- Per-scenario detail: [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md)
+- What was built and what was measured: [`README.md`](README.md)
+- **Read [§9 Known failures](#9-known-failures-read-before-judging) before judging.**
+  Two demos do not fully work and are listed there rather than hidden.
 
 ---
 
-## Part 0 — What you need installed
+## 1. What you need
 
 | | |
 |---|---|
@@ -20,224 +20,266 @@ do Part 1 and then Scenario A.
 | Simulator | Gazebo **Harmonic** (`gz-sim` 8) |
 | Also | Nav2, `slam_toolbox`, `colcon`, `rviz2` |
 
-Everything else is in this repository. There is nothing to install beyond
-dependencies.
+Nothing else to install beyond dependencies.
 
 ---
 
-## Part 1 — Set up once
-
-Run these four commands in order, from the repository root.
-
-### 1. Get the code
+## 2. Set up — four commands
 
 ```bash
 git clone https://github.com/GauthamCodes/amr-fleet-nav.git
 cd amr-fleet-nav
-```
-
-**What it does:** downloads the project. **The repository root is the colcon
-workspace** — there is no separate `~/ros2_ws` to create. The ROS packages are in
-`src/`.
-
-### 2. Install the ROS dependencies
-
-```bash
-sudo rosdep init 2>/dev/null || true
-rosdep update
 rosdep install --from-paths src --ignore-src -r -y
-```
-
-**What it does:** reads every `package.xml` in `src/` and installs the ROS
-packages they depend on. The first line is harmless if rosdep is already set up.
-
-### 3. Build
-
-```bash
 ./ws.sh colcon build --symlink-install
 ```
 
-**What it does:** compiles the workspace — two C++ packages (the safety gate and
-the costmap plugin) and seven Python ones.
-
-**You should see:** `Summary: 9 packages finished` and **0 errors**. A few
-`setuptools` deprecation warnings on stderr are normal and harmless.
-
-> **What is `./ws.sh`?** A small wrapper that every command in this guide uses.
-> It sources ROS and this workspace, points Gazebo at the world files, and raises
-> a networking limit. **Always use it — including for `rviz2`.** If you run a ROS
-> command without it, the second robot's navigation servers fail to start with
-> `Failed to find a free participant index for domain 0`. That looks like a bug in
-> the robot; it is only the missing wrapper.
-
-### 4. Run the tests
+**Expect:** `Summary: 9 packages finished`, **0 errors**. `setuptools` deprecation
+warnings on stderr are normal.
 
 ```bash
-./ws.sh python3 -m pytest tests/ -q
+./ws.sh python3 -m pytest tests/ -q      # expect: 241 passed
 ```
 
-**What it does:** runs the unit tests. They are pure functions — no simulator
-needed — so this takes about a second.
+> ### If you already cloned this repo before, `git pull` is not enough
+>
+> **You must rebuild after pulling.** The launch files, the RViz configuration and
+> the mission scripts all live in the `install/` tree, and a stale `install/` is
+> indistinguishable from a broken project: `rviz:=true` is silently ignored, RViz
+> never appears, and starting it by hand gives you an empty window. If a demo
+> below does not behave as described, run this first:
+>
+> ```bash
+> git pull
+> ./ws.sh colcon build --symlink-install
+> ```
 
-**You should see:** `241 passed`.
+### What is `./ws.sh`?
 
-Optional style checks, if you want them:
-
-```bash
-./ws.sh python3 -m flake8 .          # PEP 8 check — expect no output
-./ws.sh python3 -m black --check .   # formatting check — expect "98 files unchanged"
-```
+A wrapper every command here uses. It sources ROS and this workspace, points Gazebo
+at the world files, and raises a CycloneDDS participant limit. **Use it for
+everything, including `rviz2`.** Without it, the second robot's navigation servers
+die with `Failed to find a free participant index for domain 0` — which looks like a
+bug in the robot and is only the missing wrapper.
 
 ---
 
-## Part 2 — The one command you must run before every demo
+## 3. Before every demo
 
 ```bash
 ./scripts/clean_processes.sh
 ```
 
-**What it does:** kills any simulator or ROS processes left over from a previous
-run, then **prints what is still running**.
-
-**Wait for this banner before launching anything:**
+Wait for:
 
 ```
-==============================================================================
 PROCESS TABLE CLEAN - nothing matching a simulation or ROS pattern is running
-==============================================================================
 ```
 
-**Why it matters:** a leftover process from an earlier run keeps publishing and
-quietly corrupts the next run's behaviour and numbers. Run this between every
-demo. It takes two seconds.
+A leftover process from a previous run quietly corrupts the next one. This script
+does **not** kill `rviz2` — if a stale RViz window is open, close it or run
+`pkill -f rviz2`.
 
-> One thing it does **not** kill is `rviz2`. If you have a stale RViz window from
-> an earlier demo, close it, or run `pkill -f rviz2`.
-
----
-
-## Part 3 — The demos
-
-Each demo is **one command**. Each one starts everything it needs — the
-simulator, the robots, navigation, and (where useful) RViz — and most of them
-**stop themselves** when finished and write a report into `results/`.
-
-To stop a demo early: press `Ctrl-C` once in that terminal, wait for it to shut
-down, then run `./scripts/clean_processes.sh`.
-
-> **Nothing appears for the first ~25 seconds of any demo.** The system starts in
-> stages: robots spawn, then sensor validation, then SLAM, then the shared map,
-> then navigation. This is normal — do not assume it has hung.
+> **Nothing appears for the first ~30 seconds of any demo.** Startup is staged:
+> robots spawn, then sensor validation, then SLAM, then the shared map, then
+> navigation. Wait 45 s before concluding anything has hung.
 
 ---
 
-### Scenario A — Cooperative mapping ⭐ start here
+## 4. Reading these demos
 
+Every demo below is one command. Where a demo writes a report, it is given
+`tag:=demo` so **your run cannot overwrite the committed evidence** in `results/`.
+
+RViz, where it is used, starts automatically with the correct configuration. You do
+not need to open it yourself.
+
+---
+
+### What a working run looks like
+
+Captured from the verified runs described below, on the code in this repository.
+
+| | |
+|---|---|
+| ![the warehouse with both robots](media/verified/warehouse_both_robots.png) | **The warehouse.** Rack rows either side, the ramp and upper plateau beyond, three walking pedestrians, and **both robots in the aisle** — AMR-2 amber on the left, AMR-1 blue on the right. This is what Gazebo should open to. |
+| ![cooperative mapping](media/verified/cooperative_mapping.png) | **Demo A, cooperative mapping.** Gazebo on the left, RViz on the right. `/fleet_map` covers the whole aisle with the rack bays cut out — built by both robots into one grid. |
+| ![the safety override](media/verified/safety_override.png) | **Demo B, the safety override.** A pedestrian has walked into AMR-1's path and the robot has stopped short of them. |
+| ![both plans in RViz](media/verified/rviz_both_plans.png) | **Both routes planned at once.** Green is AMR-1's plan, cyan is AMR-2's, both in the `fleet_map` frame, `Global Status: Ok`. See §9.1 for what happens next. |
+
+---
+
+## Demo A — Cooperative mapping ⭐ start here
+
+### Purpose
+Two robots building **one shared map together** — the cooperative-mapping and
+selective-map-update requirements.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
 ./ws.sh ros2 launch amr_bringup fleet_survey.launch.py
 ```
 
-**What it does:** starts the warehouse, both robots, and **both Gazebo and RViz**
-— you do not need to open RViz yourself. Both robots then drive a lap of the aisle
-while building **one shared map together**.
+### RViz
+**Starts automatically.** Fixed Frame is already `fleet_map`.
 
-**What you will see:** the Gazebo window shows the warehouse and the robots. The
-RViz window shows the shared map `/fleet_map` starting almost empty and **filling
-in from both ends of the aisle at once**, because the two robots run the same
-circuit half a lap apart. AMR-1 is blue, AMR-2 is amber.
+### Expected startup
+Gazebo opens looking **down the warehouse aisle**, with rack rows either side, the
+ramp and upper plateau at the far end, and **both robots visible** — AMR-1 blue,
+AMR-2 amber. RViz opens showing a mostly grey (unknown) `/fleet_map`,
+`Global Status: Ok`.
 
-**Worth clicking:** in the RViz "Displays" list, tick **`amr1 own map`** and
-**`amr2 own map`**. Each robot's own map covers only part of the aisle; the shared
-map covers both. That is the cooperative mapping.
+### Expected behaviour
+Both robots drive a lap of the aisle half a lap apart. The shared map fills in
+**from both ends at once**, and rack bays appear as black cut-outs in the white free
+space. In the terminal you will see the selective-update decisions live:
 
-**Takes:** about 4–6 minutes. It stops itself.
+```
+amr1: ACCEPT score=+0.371 (f=0.00 c=0.00 r=0.47 v=0.17) score >= 0.35
+amr2: DEFER  score=+0.226 (f=0.02 c=0.12 r=0.22 v=0.26) score < 0.35
+```
 
-**Fixed Frame:** `fleet_map` (already set).
+### Success condition
+`/fleet_map` covers the whole aisle with both rack rows resolved, **and both robots
+appear in the `ACCEPT` lines** — that is the proof both contributed, not just one.
+
+### Common failure
+RViz empty → your `install/` is stale; rebuild (§2). Grey everywhere after 60 s →
+check `./ws.sh ros2 topic echo /fleet_map --once` returns a 680×400 grid.
+
+**Takes:** 4–6 minutes. Stops itself.
+
+**Verified:** map covered the full aisle; amr1 contributed 13 accepted updates and
+amr2 61 in a single run.
 
 ---
 
-### Scenario B — Both robots navigating at once, with pedestrians
+## Demo B — Safety override on a pedestrian
 
+### Purpose
+A dedicated safety layer that can stop the robot **even while Nav2 is still
+commanding motion** — the dynamic-obstacle and safety requirements.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup phase3_fleet_goals.launch.py \
-    headless:=false rviz:=true with_actors:=true tag:=demo
+./ws.sh ros2 launch amr_bringup phase2_safety_run.launch.py headless:=false tag:=demo
 ```
 
-**What it does:** brings up the full stack and sends **both robots to different
-goals at the same time**, with pedestrians walking in the aisle.
+> `tag:=demo` matters. Without it this run **overwrites** the committed
+> `results/phase2_safety_suppressed.*`.
 
-**What each part of the command means:**
+### RViz
+**Not used.** This is a single-robot demo with no shared map, and the Gazebo view
+shows everything. If you want RViz here anyway, set Fixed Frame to **`amr1/odom`**,
+not `fleet_map`.
 
-| part | meaning |
-|---|---|
-| `headless:=false` | show the Gazebo window (it is hidden by default for speed) |
-| `rviz:=true` | start RViz too, already configured |
-| `with_actors:=true` | put the walking pedestrians in the warehouse |
-| `tag:=demo` | write this run's report under a different name so it does not overwrite the committed results |
+### Expected startup
+Gazebo shows the aisle with AMR-1 and three walking pedestrians.
 
-**What you will see:** at about 32 seconds both planned paths appear in RViz at
-the same instant — **green for AMR-1, cyan for AMR-2** — and both robots drive
-them. AMR-2 arrives first because the configuration file says it is faster.
+### Expected behaviour
+AMR-1 drives up the aisle. A pedestrian walks into its path, the robot **stops short
+of them**, and continues once they move away. **This happens three times.**
 
-**Takes:** about 4–5 minutes. It stops itself.
+### Success condition
+Three `HALT` lines in the terminal and `RESULT: PASS`:
 
-> With the Gazebo window open the simulator runs at roughly a quarter of real
-> time, and AMR-1's goal sometimes does not finish inside the run's time limit.
-> For the measured result, run it without `headless:=false` (i.e. headless) and
-> read `results/`.
+```
+HALT 1: clearance 0.797 m at 0.562 m/s, sensor->zero 4.0 ms
+RELEASE: latch clearance 2.548 m > d_release 0.450 m
+...
+RESULT: PASS
+```
+
+Each halt shows the stopping rule `d_safe = k·v² + d_min` firing, the measured
+clearance that violated it, and the time from laser reading to the zero command
+being published.
+
+### Common failure
+`halts: 0` and `RESULT: FAIL` with `goal finished: REJECTED` in the log → stale
+`install/`; rebuild (§2). The robot never drove, so no encounter ever happened.
+
+**Takes:** 2–3 minutes. Stops itself.
+
+**Verified:** 3 halts at 0.797 / 0.869 / 0.940 m clearance against a `d_safe` of
+0.893 / 0.975 / 0.975 m; sensor→zero 4 / 10 / 11 ms; 0 commands leaked past the
+latch; `RESULT: PASS`.
 
 ---
 
-### Scenario C — Safety override on a pedestrian
+## Demo C — The whole system, running
 
+### Purpose
+Everything up at once: warehouse, both robots, sensor validation, SLAM, the shared
+map, both navigation stacks, the motion chain, both safety gates, the traffic
+controller.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup phase2_safety_run.launch.py headless:=false
+./ws.sh ros2 launch amr_bringup fleet_nav.launch.py headless:=false rviz:=true
 ```
 
-**What it does:** one robot navigates the aisle while pedestrians walk around it.
-A dedicated safety node watches the laser and **stops the robot when someone gets
-too close**, overriding whatever the navigation stack was commanding.
+### RViz
+**Starts automatically**, Fixed Frame `fleet_map`.
 
-**What you will see:** the robot drives, a pedestrian walks into its path, and the
-robot **stops short of them**, then continues once they move away. This happens
-three times.
+### Expected startup
+Gazebo down the aisle with **both robots** and three pedestrians. RViz shows
+`/fleet_map` (680×400 at 0.05 m, origin −15,−10), both robot models, both laser
+scans.
 
-**Watch the terminal** for lines like:
+### Expected behaviour
+**The robots do not move — this demo sends no goals.** It exists to show the whole
+graph standing up. Use Demo A or D to see motion.
 
+### Success condition
+In a second terminal:
+
+```bash
+./ws.sh ros2 node list | sort -u | wc -l     # expect 65
+./ws.sh gz model --list | grep amr           # expect amr1 and amr2
+./ws.sh ros2 run tf2_ros tf2_echo fleet_map amr1/base_link   # must resolve
 ```
-HALT 1: clearance 0.412 m at 0.331 m/s, sensor->zero 8.5 ms
-RELEASE: latch clearance 0.769 m > d_release 0.677 m
-```
 
-That is the stop distance rule `d_safe = k·v² + d_min` firing, and the time from
-the laser reading to the stop command being published.
+> `ros2 node list` without `sort -u` prints **111**, not 65 — it repeats a node once
+> per DDS participant. That is normal and is not two copies of anything.
 
-**Takes:** about 2–3 minutes. It stops itself.
+### Common failure
+RViz blank with `Frame [map] does not exist` → stale `install/` (§2). There is no
+frame called `map` in this system; the shared frame is `fleet_map` and each robot's
+own is `amrN/map`.
 
-**RViz:** not started for this one (it is a single-robot demo with no shared map).
-The Gazebo view shows everything you need. If you do want RViz here, open it
-separately and set **Fixed Frame to `amr1/odom`**, not `fleet_map`.
+**Does not stop itself.** Ctrl-C when done.
+
+**Verified:** 65 unique nodes, both robots in the Gazebo entity list, TF resolving
+from `fleet_map` to both base links, `/fleet_map` latched at 680×400.
 
 ---
 
-### Scenario D — Two robots forced into a conflict (yielding)
+## Demo D — Two robots forced into a conflict (yielding)
 
+### Purpose
+Inter-robot traffic control: when two robots' paths conflict, one is made to wait.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup phase7_yield.launch.py headless:=false rviz:=true
+./ws.sh ros2 launch amr_bringup phase7_yield.launch.py headless:=false rviz:=true tag:=demo
 ```
 
-**What it does:** puts a barrier with a single 3-metre gap between both robots and
-their goals, so they must pass through the same spot. A traffic-control node
-detects the conflict and **makes the lighter robot wait**.
+### RViz
+**Starts automatically**, Fixed Frame `fleet_map`.
 
-**What you will see:** both robots approach the gap; **AMR-2 stops, AMR-1 drives
-through, then AMR-2 continues.**
+### Expected startup
+Both robots, plus a barrier across the aisle with a single 3 m gap, so both must
+pass through the same point.
 
-**Watch the terminal** for these three lines:
+### Expected behaviour
+Both robots approach the gap; **AMR-2 stops, AMR-1 goes through, then AMR-2
+continues.**
+
+### Success condition
+Three lines in the terminal:
 
 ```
 conflict predicted amr1/amr2: ... - local layer has it
@@ -245,194 +287,220 @@ ESCALATED amr1/amr2: ... - amr2 yields to amr1
 RELEASE amr2 after 15.2 s: conflict cleared ...
 ```
 
-**Takes:** about 5–6 minutes. It stops itself.
+### Common failure
+**No escalation at all is a legitimate outcome, not a failure.** The encounter is
+staged and not identical every time — repeated runs have produced 3, 2, 1 and 0
+yields. When the robots resolve it between themselves, the traffic controller
+correctly does nothing and the report says `NOT EXERCISED`. If you want to see a
+yield and this run does not produce one, run it again, or watch the recorded run at
+[`media/yield_protocol.mp4`](media/yield_protocol.mp4).
 
-> **This encounter is deliberately staged and it is not identical every time.**
-> Across repeated runs it has produced 3, 2, 1 and even 0 yields — sometimes the
-> robots resolve it between themselves and the traffic controller correctly does
-> nothing, which the report calls `NOT EXERCISED` rather than a failure. If you
-> want to see the yield and this run does not produce one, just run it again, or
-> watch the recorded run at [`media/yield_protocol.mp4`](media/yield_protocol.mp4).
+**Takes:** 5–6 minutes. Stops itself.
 
 ---
 
-### Scenario E — Sensor validation (rejecting impossible IMU data)
+## Demo E — Sensor validation rejecting impossible IMU data
 
+### Purpose
+A validation layer between the sensors and the navigation stack.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup phase2_validation.launch.py mode:=imu_injection
+./ws.sh ros2 launch amr_bringup phase2_validation.launch.py mode:=imu_injection tag:=demo
 ```
 
-**What it does:** deliberately injects physically impossible IMU readings and
-shows the validation layer **rejecting them before the navigation stack ever sees
-them**, with a warning for each.
+### RViz
+Not used — **the terminal output is the demonstration.**
 
-**Here the terminal output is the demonstration.** You will see:
+### Expected behaviour
+500 physically impossible IMU samples are injected and each one is rejected:
 
 ```
 [WARN] imu REJECT (1): implausible angular velocity: |w_z| = 50.000 rad/s > 4.000 rad/s
 ```
 
-500 bad samples are injected; all 500 are rejected, none reach the validated
-topic, and the ~3 200 healthy samples around them are still accepted — which is
-the point: it rejects the bad data without rejecting everything.
+### Success condition
+All **500 rejected**, **0** reaching the validated topic, and the ~3 200 healthy
+samples around them still **accepted** — it rejects the bad data without rejecting
+everything.
 
-**Takes:** about 2 minutes. It stops itself.
+**Takes:** ~2 minutes. Stops itself.
 
 ---
 
-### Scenario F — Payload-aware motion (produces a plot)
+## Demo F — Payload-aware motion (produces a plot)
 
+### Purpose
+Acceleration and jerk limits that scale with load and differ per chassis, all from
+one configuration file.
+
+### Command
 ```bash
 ./scripts/clean_processes.sh
 ./ws.sh ros2 launch amr_bringup phase5_payload_trace.launch.py
 ```
 
-**What it does:** drives each robot loaded and unloaded and records how its
-acceleration and jerk are limited.
+### RViz
+Not used. No Gazebo window needed.
 
-**The output is a picture.** When it finishes, open:
+### Success condition
+Open `results/phase5_payload_trace.png`. The heavy robot becomes much more
+conservative loaded (peak commanded acceleration 0.725 → 0.272 m/s², ×0.38) than the
+light one does (1.112 → 0.940, ×0.85) — and no code treats the two robots
+differently.
 
-```
-results/phase5_payload_trace.png
-```
-
-It shows that the heavy robot becomes much more conservative when loaded than the
-light one does — and no code treats the two robots differently; it all comes from
-one configuration file.
-
-**Takes:** about 3–4 minutes. No Gazebo window needed.
+**Takes:** 3–4 minutes. Stops itself.
 
 ---
 
-### Everything at once (no goals, just the full system)
+## 5. Using RViz by hand
 
-```bash
-./scripts/clean_processes.sh
-./ws.sh ros2 launch amr_bringup fleet_nav.launch.py headless:=false rviz:=true
-```
-
-**What it does:** starts the complete stack — warehouse, both robots, sensor
-validation, SLAM, the shared map, both navigation stacks, motion smoothing, the
-safety gates and the traffic controller — and leaves it running.
-
-**This one does not stop itself.** Press `Ctrl-C` when you are done.
-
-Useful check while it runs, in a second terminal:
-
-```bash
-./ws.sh ros2 node list | wc -l
-```
-
-**Expect 53** — that is two complete robot stacks plus the shared fleet nodes.
-
-The remaining scenarios (ramp cost, trajectory sharing, fail-closed behaviour,
-recovery suppression) are in [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md).
-
----
-
-## Part 4 — Using RViz
-
-For the two-robot demos you do **not** need to open RViz yourself — add
-`rviz:=true` and it starts already configured, showing the shared map, both
-robots, both laser scans, both planned paths, and the transform tree.
-
-If you want to open it by hand:
+You should not need to, but if you want to attach RViz to a already-running demo:
 
 ```bash
 ./ws.sh rviz2 -d src/amr_bringup/rviz/fleet_mapping.rviz --ros-args -p use_sim_time:=true
 ```
 
-**What each part does:** `./ws.sh` gives RViz the same environment as everything
-else · `-d …` loads the saved view · `use_sim_time:=true` tells RViz to use the
-simulator's clock instead of your computer's — without it nothing appears.
+`./ws.sh` gives RViz the same environment as everything else · `-d` loads the saved
+view · `use_sim_time:=true` makes it follow the simulator's clock — without it,
+nothing appears.
 
-### If RViz is blank, read this
+### Fixed Frame
 
-The most likely cause is the **Fixed Frame**.
-
-| demo | Fixed Frame to use |
+| demo | Fixed Frame |
 |---|---|
-| any two-robot demo (Scenarios A, B, D, full system) | **`fleet_map`** |
-| any single-robot demo (Scenario C, ramp/laser demos) | **`amr1/odom`** |
+| any two-robot demo (A, C, D) | **`fleet_map`** |
+| any single-robot demo (B, ramp/laser demos) | **`amr1/odom`** |
 
-**There is no frame called `map` in this system** — each robot's own map frame is
-named `amr1/map` / `amr2/map`, and the shared one is `fleet_map`. If you start a
-plain `rviz2` with no configuration it defaults to `map` and shows
-`Fixed Frame — Frame [map] does not exist` with an empty screen. Load the saved
-view above, or set the Fixed Frame yourself in the "Global Options" at the top of
-the Displays panel.
+**There is no frame called `map`.** A plain `rviz2` with no configuration defaults to
+`map`, reports `Fixed Frame — Frame [map] does not exist`, and shows an empty
+screen. That is the single most likely reason for a blank RViz.
 
-Also note the shared map only starts being published about **16 seconds** into a
-run, so an empty screen before that is expected.
+The shared map is first published about **16 s** into a run, so an empty screen
+before that is expected.
 
 ---
 
-## Part 5 — Where the results are
-
-Every demo writes a plain-text report into `results/`, and those files are the
-source of every number quoted in the README.
+## 6. Where the results are
 
 ```bash
-ls results/                                     # ~75 evidence files
-cat results/phase3_concurrent_goals.md          # both robots reaching their goals
-cat results/phase2_safety_suppressed.md         # the safety stops and their timing
-cat results/phase3_selective_updates.md         # which map updates were kept or skipped
-cat results/phase7_yield.md                     # the yield decisions
+ls results/                                  # ~75 evidence files
+cat results/phase2_safety_suppressed.md      # the safety stops and their timing
+cat results/phase3_selective_updates.md      # which map updates were kept or skipped
+cat results/phase7_yield.md                  # the yield decisions
+cat results/phase3_concurrent_goals.md       # see §9 before reading this one
 ```
 
-Short recorded clips of real runs are in [`media/`](media/), each with its own
-report in `media/run_reports/`.
+Short clips of real runs are in [`media/`](media/), each with its run report in
+`media/run_reports/`.
 
 ---
 
-## Part 6 — If something goes wrong
+## 7. Launch arguments
+
+Consistent across every launch file that supports them:
+
+| argument | meaning | where |
+|---|---|---|
+| `headless:=false` | show the Gazebo window | all |
+| `rviz:=true` | start RViz already configured | `fleet_nav`, `fleet_survey` (default true), `phase3_fleet_goals`, `phase6_conflict`, `phase7_yield` |
+| `with_actors:=true` | put the walking pedestrians in the warehouse | `fleet_nav`, `fleet_survey`, `phase3_fleet_goals` |
+| `tag:=demo` | write this run's report under its own name | every launch that writes a report |
+
+`rviz:=true` is **not** available on `phase1_*`, `phase2_*` or `phase5_*` — those are
+single-robot or plot-producing runs.
+
+---
+
+## 8. If something goes wrong
 
 | What you see | What it means | What to do |
 |---|---|---|
-| `Failed to find a free participant index for domain 0`, and the second robot's navigation dies | a command was run without `./ws.sh` | stop everything, run `./scripts/clean_processes.sh`, relaunch using `./ws.sh` |
-| RViz is empty and says `Frame [map] does not exist` | RViz is on its default configuration | see Part 4 — use the saved view, or set Fixed Frame to `fleet_map` (or `amr1/odom` for single-robot demos) |
-| RViz is empty but shows no error | the run has not reached ~16 s yet, or it just started | wait; the shared map appears at about 16 s |
-| No pedestrians in the warehouse | that demo has them off by default | add `with_actors:=true` (see Scenario B) |
-| Nothing happens for 20–30 seconds | normal staged startup | wait 45 s before worrying |
-| The Gazebo window is black, or the warehouse is empty | a previous simulator is still running | `./scripts/clean_processes.sh`, then relaunch |
-| A robot spins on the spot | navigation recovery behaviour | stop, clean, relaunch |
-| Results look strange or inconsistent | a leftover process from an earlier run | `./scripts/clean_processes.sh`, confirm the CLEAN banner, run again |
-| A goal ends in `ABORTED` | the planner failed while the map was still filling in ahead of the robot | clean and relaunch; runs retry a bounded number of times |
+| RViz never opens despite `rviz:=true` | stale `install/` — the argument does not exist in the old build | `./ws.sh colcon build --symlink-install` |
+| RViz empty, `Frame [map] does not exist` | RViz is on its stock configuration | §5 — use the saved view, or set Fixed Frame |
+| `Failed to find a free participant index for domain 0` | a command was run without `./ws.sh` | clean, relaunch through `./ws.sh` |
+| `goal finished: REJECTED`, `t_goal 0.0` | goal sent before Nav2 activated — fixed in this build | rebuild (§2) |
+| Gazebo opens on an empty floor | camera looking at the origin | fixed in this build; rebuild (§2) |
+| No pedestrians | that demo has them off by default | add `with_actors:=true` |
+| Nothing for 20–30 s | normal staged startup | wait 45 s |
+| A goal ends `ABORTED` | see §9 | — |
+| Results look inconsistent | leftover process | `./scripts/clean_processes.sh`, confirm the banner, rerun |
 
 ---
 
-## Part 7 — Honest summary of what these demos do and do not show
+## 9. Known failures — read before judging
 
-The README's §10 lists this in full. The short version:
+These are stated here rather than left for you to discover.
 
-**Demonstrated and measured:** cooperative mapping into one shared map · selective
-map updating · both robots navigating simultaneously · payload-dependent
-acceleration limits · the yielding protocol · the safety override and its
-fail-closed behaviour · sensor validation rejecting impossible IMU data ·
-configuration-driven fleet scaling · a clean modular workspace and a refactoring.
+### 9.1 Two robots navigating to goals at once does not complete — `phase3_fleet_goals`
 
-**Partial, and stated as such:**
+**Only one of the two robots reaches its goal.** The other plans a full path
+repeatedly, never translates more than about 2 m, and `bt_navigator` aborts with
+`Failed to make progress`. Which robot loses depends on the configuration:
 
-- **Ramp / slope planning.** The terrain-cost mask loads correctly into both
-  robots' planners, but the graded cost over the ramp is not confirmed — it comes
-  out the same as with no mask at all. Not diagnosed, and not claimed to work.
-- **Trajectory sharing between robots (MAPF).** Each robot's predicted path
-  provably becomes cost in the other robot's local map — measured against a
-  control run. But the controller in use reacts to that cost by adjusting speed
-  rather than steering around it, so **robots autonomously deviating around each
-  other is not demonstrated.** Conflicts that the robots cannot resolve are
-  handled by the traffic controller (Scenario D).
+| configuration | AMR-1 | AMR-2 |
+|---|---|---|
+| default | SUCCEEDED 18.8–19.5 s | ABORTED, ≤ 0.6 m driven |
+| `with_motion_chain:=false` | ABORTED, 2.0 m | SUCCEEDED 11.6 s |
 
-Also worth knowing: the pedestrians are animated figures rather than solid
-physical objects, so they are visible to the laser and treated as obstacles, but
-they cannot physically collide. Distances kept are measured; "zero collisions" is
-never claimed.
+Reproduced in 8 consecutive runs. **Not** caused by the pedestrians, the Gazebo GUI,
+the trajectory layer on its own, or the safety gate — each was ruled out by running
+with it disabled.
+
+`results/phase3_concurrent_goals.md` shows **both** robots succeeding at 18.8 s and
+11.3 s. That artifact was measured before the payload motion chain and the fleet
+trajectory layer existed, and **no run since reproduces it.** Whichever robot does
+complete reproduces its own committed time almost exactly, so the numbers in that
+file are real — but the configuration that produced them is not the configuration
+that ships. **Treat that artifact as historical.**
+
+This demo is therefore left out of the list above. To watch it anyway:
+
+```bash
+./ws.sh ros2 launch amr_bringup phase3_fleet_goals.launch.py \
+    headless:=false rviz:=true tag:=demo
+```
+
+You will see both robots dispatched together, both plans drawn in RViz (green for
+AMR-1, cyan for AMR-2), and one robot drive its route while the other does not.
+
+### 9.2 Ramp / slope planning is partial
+
+The terrain-cost mask loads correctly into both robots' global costmaps and the null
+mask provably contributes nothing. But at a graded mask value the cost over the ramp
+footprint comes out **identical to the null run**. Undiagnosed, and not claimed to
+work.
+
+### 9.3 Trajectory sharing (MAPF) is mechanism-level only
+
+Each robot's predicted path provably becomes cost in the other's local costmap,
+measured against a control run (layer on: 50/50 samples cost > 0; layer off: 0/59).
+But the controller reacts to that cost by adjusting **speed** rather than steering
+around it, so **robots autonomously deviating around each other is not
+demonstrated.** Conflicts the robots cannot resolve are handled by the traffic
+controller in Demo D.
+
+### 9.4 Pedestrians are not physical
+
+Gazebo actors are animated figures, not physics bodies. They are visible to the
+laser and treated as obstacles, but cannot physically collide. Clearance is measured;
+**"zero collisions" is never claimed.**
 
 ---
 
-## The screenshare video
+## 10. What is demonstrated
+
+Cooperative mapping into one shared map · selective map updating · payload-dependent
+acceleration limits · the safety override and its fail-closed behaviour · sensor
+validation rejecting impossible IMU data · the yielding protocol · configuration-driven
+fleet scaling · a modular nine-package workspace.
+
+Partial or not demonstrated: §9.
+
+---
+
+## The video
 
 The submission video is delivered separately and is deliberately **not** stored in
-this repository — it is large and not something you need to clone the project to
-watch.
+this repository.

@@ -24,16 +24,31 @@
     "the host ran out of participant indices" - and the first robot comes up
     perfectly, which makes it look like a namespacing bug.
 
-  WHY 120
+  WHY 400, AND WHY 120 WAS NOT ENOUGH
 
-    Room for roughly ten robots' worth of stack, matching the assignment's
-    "scale to 10+ robots" requirement, so that scaling the fleet stays an edit to
-    fleet.yaml rather than a second environment problem to rediscover.
+    This was set to 120 on the estimate that a two-robot graph is "around forty
+    participants" and that 120 therefore left room for ten robots. That estimate
+    was wrong, and the correction is worth writing down because the arithmetic
+    misleads in a specific way: the count that matters is PARTICIPANTS, not nodes.
+    A two-robot fleet_nav is 65 unique node names but `ros2 node list` returns 111
+    entries, because several nodes advertise from more than one participant.
+
+    Add RViz, the traffic-control arbiter, the mission node and both trajectory
+    predictors on top of that - which is exactly the phase7_yield configuration -
+    and the graph crosses 120. The result is the same misleading failure this file
+    exists to prevent, only later and more selectively: nine nodes died with
+    "Failed to find a free participant index" while the rest of the fleet came up
+    normally, which reads as an arbiter bug rather than a host limit.
+
+    400 is chosen to be far above any configuration this repository launches,
+    including the ten-robot case, rather than tuned to just clear the largest one.
+    The index is only the upper bound of a search for a free slot, so a generous
+    ceiling costs nothing at runtime.
 -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain id="any">
     <Discovery>
-      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+      <MaxAutoParticipantIndex>400</MaxAutoParticipantIndex>
     </Discovery>
   </Domain>
 </CycloneDDS>

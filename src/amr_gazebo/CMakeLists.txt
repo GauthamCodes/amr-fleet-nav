@@ -27,6 +27,7 @@ install(
     scripts/bag_probe.py
     scripts/odom_rotation_check.py
     scripts/drive_watchdog.py
+    scripts/gui_camera.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

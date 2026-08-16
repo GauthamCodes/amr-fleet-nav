@@ -48,6 +48,8 @@ import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
 
+from amr_bsp.nav2_readiness import Nav2Readiness
+
 #: Behaviour-tree nodes whose activation means the stack stopped making progress by
 #: ordinary means. Same tuple Phase 1's nav_goal_run.py counts.
 RECOVERY_NODES = ("Spin", "BackUp", "Wait", "ClearEntireCostmap", "ClearCostmap")
@@ -128,6 +130,12 @@ class SafetyRun(Node):
         self.parameters = self.create_client(
             GetParameters, f"/{self.robot_name}/controller_server/get_parameters"
         )
+        # An action server that EXISTS is not an action server that ACCEPTS. See
+        # amr_bsp.nav2_readiness: dispatching on wait_for_server alone produced a run
+        # whose only symptom was "Action server is inactive. Rejecting the goal.",
+        # a goal result of REJECTED, and a safety report reading "halts: 0 ... FAIL"
+        # - because the robot never drove at the pedestrian in the first place.
+        self.readiness = Nav2Readiness(self, [self.robot_name])
 
         self.gate = None
         self.blocked = False
@@ -343,6 +351,12 @@ class SafetyRun(Node):
             if not self.client.wait_for_server(timeout_sec=0.1):
                 self.get_logger().info(
                     "waiting for navigate_to_pose", throttle_duration_sec=5.0
+                )
+                return
+            if not self.readiness.all_active():
+                self.get_logger().info(
+                    "navigate_to_pose is up; waiting for bt_navigator to activate",
+                    throttle_duration_sec=5.0,
                 )
                 return
             self._dispatch()
