@@ -279,7 +279,7 @@ reaches `active`**.
 **Expected result.**
 
 **Both goals are dispatched, both are accepted, both plans are published in
-`fleet_map`, and both robots arrive.** Four consecutive runs on this commit:
+`fleet_map`, and both robots arrive.** Six consecutive runs on this commit:
 
 | run | amr1 | amr2 |
 |---|---|---|
@@ -287,6 +287,8 @@ reaches `active`**.
 | 2 | SUCCEEDED 18.9 s, 10.50 m, 0.019 m | SUCCEEDED 11.3 s, 10.68 m, 0.185 m |
 | 3 | SUCCEEDED 18.6 s, 10.51 m, 0.011 m | SUCCEEDED 11.3 s, 10.68 m, 0.182 m |
 | 4 | SUCCEEDED 18.6 s, 10.48 m, 0.029 m | SUCCEEDED 11.3 s, 10.66 m, 0.156 m |
+| 5 — from-scratch build | SUCCEEDED 18.6 s, 10.51 m, 0.009 m | SUCCEEDED 11.3 s, 10.68 m, 0.183 m |
+| 6 — the Demo B preview run | SUCCEEDED 18.6 s, 10.51 m, 0.017 m | SUCCEEDED 11.3 s, 10.73 m, 0.235 m |
 
 Closest approach **3.000 m** over 2 163 samples, **0 replans** in every run. Committed
 as `results/phase3_concurrent_goals_recheck.md`, and the timings reproduce
@@ -546,6 +548,7 @@ times**, held **1.0 s and 15.2 s**, both released on *conflict cleared* — neve
 | the run reports NOT EXERCISED | no conflict met the escalation test | relaunch; this is not a failure |
 | `RELEASE ... max hold elapsed (fail-safe)` | the 45 s ceiling broke a deadlock | report it as a deadlock, not a successful yield — the report distinguishes them |
 | both robots stop and neither moves | both entered the gap together | this is the failure the yield prevents; relaunch |
+| **amr1's last line is a `HALT` beside the barrier and its goal never finishes, while amr2 completes** | **a real defect, not staging noise.** amr1's own SafetyGate latches on the static barrier; the gate reopens only when the clearance *ahead* grows or nothing is commanded, and it is holding Nav2's progress checker off meanwhile, so no recovery backs it out. Seen in **2 of the 6 runs on record**; one was still held 341 s later | Ctrl-C and relaunch. Full account in README §10.9a; it does not affect `results/phase7_yield.md`, where both goals SUCCEEDED |
 
 **Say this plainly: the encounter is staged, and staged is not deterministic.** Four
 runs of this identical launch have given **3, 2, 1 and 0 escalations**. A run that

@@ -26,9 +26,25 @@ time where the behaviour itself is the point.
 | Preview | Length / speed | Shows |
 |---|---|---|
 | `cooperative_mapping.gif` | 11 s at 14× | Gazebo left, RViz right. `/fleet_map` grows from empty to covering the aisle, filling in **from both ends at once** because both robots are contributing, with the rack bays resolving as black cut-outs. Demo A. |
-| `concurrent_goals.gif` | 10 s at 1.35× | Both plans already drawn in the `fleet_map` frame — **green AMR-1, cyan AMR-2** — and both robots tracking them at visibly different speeds. Demo B. |
-| `safety_override.gif` | 11 s at 2.4× | A pedestrian walks into AMR-1's path; the SafetyGate halts the robot short of them and releases on hysteresis once they move away. Demo C. |
-| `yield_protocol.gif` | 11 s at 3.6× | Both robots converge on the single 3.0 m gap in the barrier and pass through it one at a time. Demo D. |
+| `concurrent_goals.gif` | 10 s at 2× | Gazebo left, RViz right. Both plans drawn in the `fleet_map` frame before either robot moves — **green AMR-1, cyan AMR-2** — then both robots track their own plan east and **both arrive**. Demo B. |
+| `safety_override.gif` | 10 s at **1.05×** | A pedestrian walks into AMR-1's path; the SafetyGate halts the robot short of them and releases on hysteresis once they move away. Demo C. |
+| `yield_protocol.gif` | 10 s at 6× | The shared map: both robots converge on the single 3.0 m gap in the barrier, pass through it one at a time, and both reach their goals. Demo D. |
+
+**Three of these four were reframed after a review found the first cut unreadable**, and
+the reason is worth stating because it is the same mistake three times. The robots are
+about 0.7 m long in a 34 m warehouse, so a full-screen grab at the shipped RViz scale
+renders them **about ten pixels across** — `concurrent_goals.gif` in particular read as
+"nothing moved" when in fact both robots crossed the aisle and arrived. The fix was a
+recording-only RViz camera scale per scene (13.9 m across for the goals, 12.6 m for the
+yield) and a crop onto the aisle, plus dropping the speed-up on the safety clip. **No
+simulation parameter was changed and no clip is composited from more than one run**; the
+camera and the crop are the only editorial choices, exactly as described at the bottom of
+this file.
+
+`safety_override.gif` is near real time rather than sped up **because the behaviour it
+has to show is 0.3–0.7 s long**. Its halts were being compressed to two or three frames
+at the 2.4× the earlier cut used, which is indistinguishable from the robot not stopping
+at all. A demonstration that is too fast to read is not a demonstration.
 
 ## `verified/` — stills to hold your own run against
 
@@ -40,6 +56,8 @@ time where the behaviour itself is the point.
 | `concurrent_goals.png` | Demo B with **both routes planned at once** in the `fleet_map` frame, green for AMR-1 and cyan for AMR-2, `Global Status: Ok` |
 | `safety_override.png` | Demo C: a pedestrian has walked into AMR-1's path and the robot has stopped short of them |
 | `yield_gap.png` | Demo D: the staged conflict — both robots approaching the single 3.0 m gap in the red barrier, with the shared map and both plans in RViz |
+| `full_system_bringup.png` | Demo E: the whole graph up — Gazebo with both robots and the pedestrians, RViz with `/fleet_map` and both robots' scans. **Nothing is moving, and that is correct**: this demo sends no goals |
+| `imu_validation.png` | Demo F: the end of a real injection run — two of the `imu REJECT` warnings and the whole `VERDICT` block, ending `RESULT: PASS`. Cropped above the line where the run prints the path it wrote to |
 
 ## What the recorded runs actually measured
 
@@ -54,7 +72,8 @@ canonical artifact, the difference is stated here rather than hidden.
   **41 scored, 23 accepted, 18 deferred (43.9 %)**, amr1 13/8 and amr2 10/10.
 
 - **Concurrent goals.** The recorded run reached both goals, amr1 18.6 s and amr2
-  11.3 s. That is not a one-off: four consecutive runs are in
+  11.3 s. That is not a one-off, and this run is not an unrecorded extra: it is **run 6**
+  of the six in
   [`../results/phase3_concurrent_goals_recheck.md`](../results/phase3_concurrent_goals_recheck.md),
   which also retracts an earlier claim that only one robot ever arrives.
 
@@ -65,16 +84,31 @@ canonical artifact, the difference is stated here rather than hidden.
   Nav2 recovery behaviours during a halt, and a sensor-stamp-to-zero-command time in
   single-digit milliseconds.
 
-- **The yield.** Escalation is **non-deterministic and the previews prove it**: four
-  runs while recording gave **0 escalations at the default prediction window, then 0, 1
-  and 2 at `time_window_s:=5.0`**. Two of those four therefore reported
+- **The yield.** Escalation is **non-deterministic and the previews prove it**: six
+  runs while recording gave **0 escalations at the default prediction window, then 1, 0,
+  2, 0 and 1 at `time_window_s:=5.0`**. Three of those six therefore reported
   **`NOT EXERCISED`** — which is the correct verdict for a run in which the robots
-  opened the gap between themselves, not a failure. The escalations that did fire
-  released on *conflict cleared* rather than on the 45 s fail-safe, with 0 recovery
-  behaviours during the hold, and both goals SUCCEEDED. The canonical yield numbers in
-  `../README.md` §5.7 come from
+  opened the gap between themselves, not a failure.
+
+  The clip carried here is the last of them, and **that run's own two reports are
+  committed** so the caption can be checked rather than taken on trust:
+  [`../results/phase7_yield_preview_arbiter.md`](../results/phase7_yield_preview_arbiter.md)
+  and
+  [`../results/phase7_yield_preview_mission.md`](../results/phase7_yield_preview_mission.md).
+  **4 conflicts predicted, 3 resolved locally by the robots and 1 escalated**, AMR-2
+  yielding for **1.0 s** and released on *conflict cleared* rather than on the 45 s
+  fail-safe, **0 recovery behaviours during the hold**, the SafetyGate blocking on
+  **0 of 21 held cycles**, and **both goals SUCCEEDED** (amr1 39.2 s, amr2 20.6 s,
+  closest approach 1.915 m).
+  **You cannot see the 1.0 s hold in the GIF** — at 6× it is two frames — so the clip is
+  captioned as what it does show, which is both robots passing the one gap in turn.
+  The canonical yield numbers in `../README.md` §5.7 come from
   [`../results/phase7_yield.md`](../results/phase7_yield.md), measured at the **default**
   window.
+
+  **Two of the six runs also ended with AMR-1 stalled at the barrier** — halted by its
+  own SafetyGate and never released, while AMR-2 finished. That is a real defect and it
+  is written up in `../README.md` §10.9a rather than left out of this list.
 
 ## `archive/`
 

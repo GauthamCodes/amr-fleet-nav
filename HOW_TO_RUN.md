@@ -176,8 +176,9 @@ the configuration file makes it the faster chassis — no code distinguishes the
 
 ![concurrent goals](media/previews/concurrent_goals.gif)
 
-*Both plans are already drawn in RViz — green AMR-1, cyan AMR-2 — and both robots track
-them at visibly different speeds. Near real time (1.35×).*
+*Gazebo left, RViz right, one run. Both plans are drawn before either robot moves —
+**green AMR-1, cyan AMR-2** — and both robots then track their own plan east and
+**arrive**, AMR-2 first. 20 s of a real run at 2×.*
 
 ### Command
 
@@ -212,9 +213,10 @@ A goal ending `ABORTED` with `Failed to make progress`, or only one robot moving
 
 **Takes:** 2 min headless, 4–5 min with the GUI. Stops itself.
 
-**Verified:** four consecutive runs on this commit, **both robots arriving every time** —
-amr1 18.6–18.9 s to a 0.011–0.029 m final error, amr2 11.3 s in all four, closest
-approach 3.000 m over 2 163 samples, 0 replans. Committed as
+**Verified:** six consecutive runs on this commit, **both robots arriving every time** —
+amr1 18.6–18.9 s to a 0.009–0.029 m final error, amr2 11.3 s in all six, closest
+approach 3.000 m over 2 163 samples, 0 replans. One of the six was measured on a build
+made from scratch, and the GIF above is cut from another of them. Committed as
 `results/phase3_concurrent_goals_recheck.md`.
 
 ---
@@ -229,7 +231,9 @@ by asking the planner nicely.
 ![safety override](media/previews/safety_override.gif)
 
 *A pedestrian walks into AMR-1's path and the robot stops short of them, then continues
-once they move away. 26 s of a real run at 2.4×.*
+once they move away. **Near real time (1.05×)** on purpose: each halt lasts only
+0.3–0.7 s, and at the 2.4× this clip used to run at, the stop was gone before you could
+see it. This window holds three of the run's four halts.*
 
 ### Command
 
@@ -286,8 +290,11 @@ cannot does a central arbiter step in and order the lighter robot to wait.
 
 ![yield protocol](media/previews/yield_protocol.gif)
 
-*AMR-2 is escalated to a yield and holds while AMR-1 passes through the gap, then
-resumes and completes its own goal. 40 s of a real run at 3.6×.*
+*The shared map in RViz: both robots converge on the single gap in the barrier, pass
+through it one at a time, and both reach their goals. 62 s of a real run at 6×. **The
+yield itself is not what you are seeing here** — in this run the arbiter escalated once
+and AMR-2 held for **1.0 s**, which at this speed is two frames. The escalation is in
+the terminal, and the numbers are below.*
 
 ### Command
 
@@ -331,21 +338,48 @@ it again, or widen the prediction window as below.
 
 **Takes:** 5–6 minutes. Stops itself.
 
-**Verified, and the honest version.** Four runs while recording this preview:
+**Verified, and the honest version.** Six runs of this demo are on record:
 
 | run | window | escalations | verdict |
 |---|---|---|---|
-| 1 | default 3.0 s | **0** — 3 conflicts predicted, all resolved locally (separation opened to 2.48 / 2.03 / 1.95 m) | NOT EXERCISED |
+| 1 | default 4.0 s | **0** — 3 conflicts predicted, all resolved locally (separation opened to 2.48 / 2.03 / 1.95 m) | NOT EXERCISED; **amr1 also stalled at the barrier — see below** |
 | 2 | `time_window_s:=5.0` | 1 — AMR-2 held 2.8 s | PASS |
 | 3 | `time_window_s:=5.0` | **0** — 2 conflicts, both resolved locally | NOT EXERCISED |
 | 4 | `time_window_s:=5.0` | **2** — AMR-2 held 1.4 s and 8.2 s | PASS |
+| 5 | `time_window_s:=5.0` | **0** | NOT EXERCISED; **amr1 stalled at the barrier — see below** |
+| 6 | `time_window_s:=5.0` | 1 — AMR-2 held 1.0 s | PASS |
 
-**The clip above is run 4.** Both of its escalations released on **`conflict cleared`**,
-not on the 45 s fail-safe, with **0 recovery behaviours during either hold**, and **both
-goals SUCCEEDED**. Two of the four runs reporting `NOT EXERCISED` is the
+**The clip above is run 6**, and its report reads: **4 conflicts predicted, 3 resolved
+locally by the robots themselves and 1 escalated** — which is the local-first ordering
+working, not a weak result. The one escalation released on **`conflict cleared`** after
+1.0 s, never the 45 s fail-safe; **0 recovery behaviours during the hold**; the
+SafetyGate was blocking on **0 of 21 held cycles**, so the stop was the arbiter's and
+nothing else's; and **both goals SUCCEEDED** (amr1 39.2 s, amr2 20.6 s). That run's two
+reports are committed as `results/phase7_yield_preview_arbiter.md` and
+`results/phase7_yield_preview_mission.md`, so the clip above can be checked against its
+own measurement. Three of the six runs reporting `NOT EXERCISED` is the
 non-determinism, measured rather than described. The canonical yield numbers in
 `README.md` §5.7 come from `results/phase7_yield.md`, which ran at the **default**
 window.
+
+### Known limitation — AMR-1 can stop at the barrier and not restart
+
+In **two of the six runs of this demo on record**, AMR-1 never reached its goal: its own
+safety gate halted it beside the barrier and never released, while AMR-2 finished
+normally. The last line for it is a halt, not a release:
+
+```
+[amr1.safety_gate]: HALT: clearance 0.299 m <= d_safe 0.305 m at measured 0.052 m/s
+```
+
+and in the run measured for this note it was **still held 341 s later**. This is a real
+defect, not staging noise: the gate only reopens when the clearance *ahead* grows or
+when nothing is being commanded, Nav2 keeps commanding forward into a barrier that does
+not move, and the gate is meanwhile holding Nav2's progress checker off — which is
+correct for a pedestrian who walks away and wrong for a barrier that does not. **If you
+see it, that is the defect and not your machine**; `README.md` §10.9a has the full
+account. Ctrl-C and relaunch. It does not affect the yield measurement itself
+(`results/phase7_yield.md`, both goals SUCCEEDED).
 
 ---
 
@@ -354,6 +388,15 @@ window.
 Everything up at once: warehouse, both robots, sensor validation, SLAM, the shared map,
 both navigation stacks, the motion chain, both safety gates, the traffic controller.
 Nothing is commanded to move — this demo exists to show the whole graph standing up.
+
+![the whole system up](media/verified/full_system_bringup.png)
+
+*A still rather than a GIF, because **nothing moves in this demo by design**. Gazebo
+left: both robots in the aisle, AMR-2 amber and AMR-1 blue, with the pedestrians walking.
+RViz right: `/fleet_map` with both robot models and both laser scans on it. The map is
+mostly unknown grey because no goal has been sent and neither robot has driven — that is
+the expected state here, not a fault. The node census below is the other half of the
+check.*
 
 ### Command
 
@@ -403,6 +446,12 @@ A validation layer sits between the sensors and the navigation stack. Physically
 impossible IMU samples are injected and every one is rejected, while the healthy samples
 around them still get through — it rejects the bad data without rejecting everything.
 
+![IMU validation terminal output](media/verified/imu_validation.png)
+
+*The end of a real run. There is no GIF for this demo because there is nothing to watch
+move — the requirement is that the node **logs a warning** on implausible data and keeps
+it out of navigation, so the terminal is the demonstration.*
+
 ### Command
 
 ```bash
@@ -431,6 +480,15 @@ around them still **accepted**.
 
 Acceleration and jerk limits that scale with load and differ per chassis, all from one
 configuration file. The deliverable is a plot rather than a simulator window.
+
+![payload-aware motion](results/phase5_payload_trace.png)
+
+*This is the file the command below writes, and it is the whole demonstration — which is
+why there is no GIF here. **Top right is the point:** loaded (orange, dashed) AMR-1
+accelerates at about a third of its unloaded rate, and its braking is drawn out to
+match. **Bottom right** is the same experiment on AMR-2, whose lighter payload barely
+changes it. Left column: both reach exactly the same 0.5 m/s cruise, so this is a limit
+on how hard they change speed, not on how fast they go.*
 
 ### Command
 
@@ -536,7 +594,7 @@ These are stated here rather than left for you to discover.
 
 An earlier revision of this page said that **only one of the two robots ever reaches
 its goal** in `phase3_fleet_goals`, reproduced in nine consecutive runs. **That does
-not reproduce.** Both robots arrive, four runs out of four on this commit — the demo
+not reproduce.** Both robots arrive, six runs out of six on this commit — the demo
 is Demo B above, and the evidence is `results/phase3_concurrent_goals_recheck.md`.
 
 The failing runs were measured on a machine in two bad states at once: this
@@ -595,16 +653,18 @@ Partial or not demonstrated: §9.
 ## The video
 
 The submission screenshare is delivered separately and is deliberately **not** stored
-in this repository. It runs **3 min 22 s** and covers, in order: the warehouse and
-both robots · cooperative mapping with `/fleet_map` growing live in RViz · the
-selective-update result · concurrent goals · payload-adaptive motion · the safety
-override stopping the robot on a pedestrian · the yield protocol · IMU validation ·
-the architecture and the limitations above. Every scene is real footage from a run of
-the commands on this page.
+in this repository. It runs **3 min 21 s** and covers, in order: the warehouse and both
+robots · cooperative mapping with `/fleet_map` growing live in RViz · the
+selective-update result · **both robots reaching concurrent goals** · payload-adaptive
+motion · the safety override stopping the robot on a pedestrian · the conflict and the
+yield · sensor validation · the architecture and the limitations above.
 
-> **One scene in that video is now out of date, and this page is the current
-> statement.** It was cut before the re-measurement in §9.1, so its concurrent-goals
-> scene presents "only one robot arrives" as current behaviour. **It is not** — both
-> robots arrive, four runs out of four, and the GIF beside Demo B is what that command
-> does today. Where the video and this page disagree, believe this page and
-> `results/phase3_concurrent_goals_recheck.md`.
+Every moving scene is footage of a run of a command on this page, on this commit.
+Four scenes are stills instead — selective mapping, payload, sensor validation and the
+closing limitations — because each of those is a **number or a structure**, and a still
+that can be read beats a clip that cannot. Nothing is staged, re-enacted or composited
+from more than one run; the only editorial choices are which window is on screen, how
+far the RViz camera is zoomed, and how much uneventful travel is sped up.
+
+**Where the video and this page could disagree, believe this page** — it is versioned
+with the code and the video is not.

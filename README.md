@@ -20,7 +20,7 @@ stated with the same evidence discipline as the results in §5.**
 | **Languages** | Python (PEP 8, flake8 + black) · C++ (Google style) where measured latency justifies it |
 | **Packages** | 9, all namespaced, all configuration-driven |
 | **Tests** | 241 unit tests, pure functions, no simulator required |
-| **Evidence** | 80 artifacts in [`results/`](results/) |
+| **Evidence** | 82 artifacts in [`results/`](results/) |
 
 **Documentation map**
 
@@ -72,13 +72,15 @@ Full-size stills of the same runs are in [`media/verified/`](media/verified/), a
 a recorded run's numbers differ from the canonical artifact in `results/`.
 
 **The submission screenshare is delivered separately with the submission and is
-deliberately not in this repository.** It is a short demonstration — the warehouse and
-both robots, cooperative mapping and selective updates live in RViz, concurrent goals
-with the current failure shown rather than cut, payload-adaptive motion, the safety
-override stopping the robot on a pedestrian, the yield protocol, sensor validation,
-and the architecture with the limitations of §10 stated on screen. `videos/` is kept
-as the place to record into, and `*.mp4` / `*.mkv` / `*.webm` are git-ignored apart
-from the four short evidence clips above.
+deliberately not in this repository.** It runs a little over three minutes — the
+warehouse and both robots, cooperative mapping and selective updates live in RViz, both
+robots reaching concurrent goals, payload-adaptive motion, the safety override stopping
+the robot on a pedestrian, the conflict and the yield, sensor validation, and the
+architecture with the limitations of §10 stated on screen. Every scene is footage of a
+run of a command in [`HOW_TO_RUN.md`](HOW_TO_RUN.md) on this commit. `videos/` is kept
+as the place to record into, and `*.mp4` / `*.mkv` / `*.webm` are git-ignored with **no
+exception** — the previews above are GIFs precisely so that GitHub plays them inline
+instead of asking an evaluator to download a file.
 
 ---
 
@@ -395,7 +397,7 @@ from what was measured, not from what was built** — three rows below say a cla
 | **1** | Heterogeneous fleet (AMR-1 mapper/lead higher payload; AMR-2 scout/follower higher acceleration) in a multi-level Gazebo warehouse with racks, ramp and dynamic obstacles | `amr_description/config/fleet.yaml` — one typed robot list; one shared `amr.urdf.xacro`; `amr_gazebo` warehouse with 8° ramp, two plateaus, rack rows, walking actors | `results/smoke1_actor_visibility.md`, `results/smoke2_ramp_phantom_return.md`, `results/phase1_map.png` | **Verified.** Actors raycast by the LiDAR and reach **254 LETHAL in the Nav2 costmap in 100 % of frames**; ramp max pitch **8.001°**; amr1 90.0 kg / 0.60 m/s vs amr2 23.0 kg / 1.00 m/s, both from the one file |
 | **2.1a** | Cooperative global SLAM & map fusion — both robots contribute to a **single unified** occupancy grid | `amr_fleet_control/fleet_map_node.py` composites both `slam_toolbox` maps into `/fleet_map`; wired as the **static layer of both global costmaps**, both planning in `global_frame: fleet_map` | `results/phase3_concurrent_goals.md`; DEMO_RUNBOOK scenario 1 (live in RViz) | **Verified.** 63 unique nodes (23 per robot + 17 shared), every lifecycle node `active`; `/fleet_map` 680 × 400 @ 0.05 m origin (−15, −10), TRANSIENT_LOCAL, **2 matched subscribers = both global costmaps**. Re-verified live in RViz: one `/fleet_map` grows from both ends at once and **both robots appear in the `ACCEPT` stream of the same run** — the per-robot split is in `results/phase3_selective_updates.md` (amr1 13 accepted, amr2 10) |
 | **2.1b** | **Selective mapping** — prioritise unexplored boundaries, reduce update frequency for repeatedly traversed areas | Scored policy in `fleet_map_node.py`: `w_f·frontier + w_c·change + w_r·recency − w_v·revisit`; below threshold the merge *and* the composite work are skipped | `results/phase3_selective_updates.md` + `.csv` | **Verified.** **41 candidates scored, 23 accepted, 18 deferred (43.9 %)**, measured while both robots were exploring. Per robot: amr1 13/8, amr2 10/10 |
-| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals_recheck.md` (four consecutive runs on this commit), `results/phase3_concurrent_goals.md` | **Verified.** Both goals dispatched in one pass, both accepted, both plans published in `fleet_map`, and **both robots arrive**: amr1 **18.6–18.9 s** to a 0.011–0.029 m final error, amr2 **11.3 s** every run, closest approach **3.000 m** over 2 163 samples, 0 replans. amr2 arrives first because `fleet.yaml` gives it `max_vel_x` 1.00 against 0.60 — no code distinguishes them. An earlier revision recorded this row as *Partial* on the strength of nine failing runs; those were measured on a contaminated process table and the finding is **retracted** in §10 |
+| **2.2a** | Adaptive global planner — **concurrent goals** for both robots | `amr_fleet_control/fleet_mission.py` dispatches both goals in one pass; each robot's own Nav2 stack plans in the fleet frame | `results/phase3_concurrent_goals_recheck.md` (six consecutive runs on this commit), `results/phase3_concurrent_goals.md` | **Verified.** Both goals dispatched in one pass, both accepted, both plans published in `fleet_map`, and **both robots arrive**: amr1 **18.6–18.9 s** to a 0.009–0.029 m final error, amr2 **11.3 s** every run, closest approach **3.000 m** over 2 163 samples, 0 replans. amr2 arrives first because `fleet.yaml` gives it `max_vel_x` 1.00 against 0.60 — no code distinguishes them. An earlier revision recorded this row as *Partial* on the strength of nine failing runs; those were measured on a contaminated process table and the finding is **retracted** in §10 |
 | **2.2b** | **Ramp/slope planning** — custom cost function *or tuned configuration* that costs sloped surfaces, minimising their use unless they are the only viable path | Nav2 `KeepoutFilter` costmap-filter mask over the ramp footprint, generated (not hand-drawn) by `amr_navigation/ramp_mask.py`; loads into both global costmaps via the `filters:` list | `results/phase3_ramp_cost_graded.md` (graded arm, mask value 60) against `results/phase3_concurrent_goals.md` (null-mask arm) | **Partial — plumbing verified, graded cost NOT confirmed.** Both costmaps log `Received filter mask`; the null mask is proven to contribute nothing (**minimum cost over 272 000 known cells = 0**). But at mask value 60 the cost over the 3 550-cell ramp footprint is **0..100 — identical to the null run**. Undiagnosed; hypothesis in §10. The two-route A/B is unstageable in this world (§10) |
 | **3.1** | Dynamic velocity and motion smoothing — acceleration and jerk limited by dynamic state and payload; the heavier AMR-1 must have lower acceleration limits than AMR-2 | Stock `nav2_velocity_smoother` **chained into** `amr_motion/payload_jerk_adapter.py`; per-robot limits from `fleet.yaml`, scaled down by payload state, never up | `results/phase5_payload_trace.md`, `.csv`, **`.png`** | **Verified for the payload ratio; jerk ceiling NOT certified.** amr1's peak commanded acceleration falls **×0.38** loaded against amr2's **×0.85**, and **no code distinguishes them**. Peak commanded velocity exactly 0.500 in all four cases. The published stream measures up to ~1.9× the configured jerk bound (§10) |
 | **3.2a** | **MAPF element** — the local planner for **each robot** consumes the **projected trajectory of the other robot** | `amr_fleet_control/trajectory_predictor.py` publishes each robot's projected path; `amr_costmap_plugins` `FleetTrajectoryLayer` (C++ pluginlib) deposits `max_cost·exp(−Δt/τ)` into the **other** robot's LOCAL costmap, combined with `std::max` | `results/phase6_cost_injection_layer_on.md` vs `..._off.md` (+ `.csv`) | **Mechanism verified against a control; autonomous mutual deviation NOT claimed.** At the peer's *predicted* cell 2 s ahead: **50/50 samples cost > 0 (100 %) with the layer, 0/59 (0 %) without**; median cost 145, max 240, decay model predicts 125.9. RegulatedPurePursuit paces against that cost rather than deviating laterally (§10) |
@@ -925,7 +927,7 @@ everything else.
 > reproduce. It is retracted as a limitation of this code.**
 >
 > Re-measured on this commit with **no source change**, `phase3_fleet_goals` reaches
-> both goals in four consecutive runs:
+> both goals in six consecutive runs:
 >
 > | run | AMR-1 | AMR-2 | verdict |
 > |---|---|---|---|
@@ -933,6 +935,8 @@ everything else.
 > | 2 | SUCCEEDED 18.9 s, 0.019 m | SUCCEEDED 11.3 s, 0.185 m | PASS |
 > | 3 | SUCCEEDED 18.6 s, 0.011 m | SUCCEEDED 11.3 s, 0.182 m | PASS |
 > | 4 — one leak generation left alive deliberately | SUCCEEDED 18.6 s, 0.029 m | SUCCEEDED 11.3 s, 0.156 m | PASS |
+> | 5 — on a **from-scratch build** (`rm -rf build install log`) | SUCCEEDED 18.6 s, 0.009 m | SUCCEEDED 11.3 s, 0.183 m | PASS |
+> | 6 — the run the Demo B preview is cut from | SUCCEEDED 18.6 s, 0.017 m | SUCCEEDED 11.3 s, 0.235 m | PASS |
 >
 > Committed as `results/phase3_concurrent_goals_recheck.md`. Those timings reproduce
 > `results/phase3_concurrent_goals.md` (18.8 s / 11.3 s) — the artifact this file
@@ -957,7 +961,7 @@ everything else.
 > leaving one generation of orphans alive did *not* reproduce the failure — that is
 > run 4 above — so a single leak is not sufficient on its own. The accumulated load of
 > seven generations, the exhausted disk, or the two together all remain candidates.
-> What the four runs support is narrower and is all that is asserted here: **the
+> What the six runs support is narrower and is all that is asserted here: **the
 > shipped code reaches both goals**, and the entry that stood here described the
 > machine rather than the repository.
 >
@@ -1053,15 +1057,40 @@ it: rclpy's `StaticTransformBroadcaster` is append-only — it silently skips a
 does nothing.)
 
 **9. The yield scenario is staged, and staged is not deterministic.** Runs of the
-identical launch have given **3, 2, 1 and 0 escalations**, and four further runs while
-recording the previews gave **0** at the default prediction window and **1, 0 and 2** at
-`time_window_s:=5.0` — so widening the window raises the odds and does not fix them.
+identical launch have given **3, 2, 1 and 0 escalations**, and six further runs while
+recording the previews gave **0** at the default prediction window and **1, 0, 2, 0 and
+1** at `time_window_s:=5.0` — so widening the window raises the odds and does not fix
+them. **Three of those six escalated nothing.**
 The barrier, the 3.0 m gap and the 5.0 s dispatch offset stage the encounter; the
 simulator is under no obligation to stage it identically twice. A run that escalates
 nothing reports **NOT EXERCISED**, not FAIL — a run in which the local layer resolved
 everything is not a failed run. The escalation that did fire released on *conflict
 cleared* after 2.8 s with 0 recovery behaviours during the hold, and both goals still
 SUCCEEDED.
+
+> **9a. In this scenario AMR-1 can stop at the barrier and never restart, and that is a
+> real defect rather than staging noise.** In **two of the six `phase7_yield` runs on
+> record**, AMR-1 did not reach its goal: its own `SafetyGate` halted it beside the
+> barrier and never released, while AMR-2 completed normally. In the run measured for
+> this entry the final halt was `clearance 0.299 m <= d_safe 0.305 m at measured
+> 0.052 m/s`, and the robot was **still held 341 s later** when the run was stopped. No
+> `RELEASE` line follows it.
+>
+> **The mechanism is an interaction between two deliberate behaviours, and neither is
+> wrong on its own.** The gate releases when the clearance in the sector the current
+> command drives into rises above `d_release`, or when no translation is commanded at
+> all (`safety_gate.cpp` `Evaluate`). Nav2 here keeps commanding *forward*, into a
+> barrier that is static, so the forward sector never opens. Ordinarily the progress
+> checker would time out and Nav2 would run a recovery that backs the robot off — but
+> the gate raises `movement_time_allowance` to 10⁶ s for exactly as long as it is
+> blocking (§5.8, ENGINEERING_NOTES rule 2), which is right for a pedestrian who will
+> walk away and wrong for a barrier that will not. The two together livelock.
+>
+> **What is not claimed:** a rate. Two of six runs is what was observed, the trigger
+> geometry was not isolated, and no fix was attempted — a release path conditioned on
+> the obstacle being persistent rather than transient is the obvious direction and it is
+> not in this repository. This does not affect the yield measurement in §5.7: that run
+> is `results/phase7_yield.md`, in which **both goals SUCCEEDED**.
 
 **10. Two nodes write the same Nav2 parameter, and that interaction is designed for
 but not exercised.** `SafetyGate` raises `movement_time_allowance` on a halt and the
