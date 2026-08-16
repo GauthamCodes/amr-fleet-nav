@@ -24,9 +24,11 @@ know what should appear on screen, and know what to do when it does not.
 1. **Every ROS or Gazebo command goes through `./ws.sh`, including `rviz2`.** The
    wrapper sources the workspace and *appends* to `CYCLONEDDS_URI`, raising
    CycloneDDS's participant ceiling from its default of 9 to **400**. The count that
-   matters is **participants, not nodes**: a two-robot `fleet_nav` is 65 unique node
-   names but `ros2 node list` returns **111 entries**, because several nodes
-   advertise from more than one participant. Past the ceiling, node creation throws
+   matters is **participants, not nodes**: a two-robot `fleet_nav` is **23 nodes in
+   each robot's namespace plus 17 shared — 63 unique names measured on this build** —
+   and `ros2 node list` sometimes repeats a node once per DDS participant, so the raw
+   entry count moves between runs and is not a pass/fail number. Past the ceiling,
+   node creation throws
    `Failed to find a free participant index for domain 0` and whichever servers
    started last die while the rest of the fleet comes up perfectly — which reads
    exactly like a namespacing bug in one robot and is a host-wide limit. **The
@@ -243,13 +245,10 @@ Nav2 servers, 23/25 each SafetyGate, 24/26 each TrajectoryPredictor, 30 the arbi
 **Expected visual behaviour.** In Gazebo, two visibly different chassis — amr2
 smaller — and pedestrians walking the aisle. In RViz at t≈32 s **both `/plan` paths
 appear at the same instant**, green for amr1 and cyan for amr2, running east in their
-own lanes. **One robot then drives its route and arrives; the other replans the same
-path repeatedly and never gets going.** That is the current behaviour, not a
-misconfiguration on your side — see *Expected result* below.
+own lanes. **Both robots then track their own plan and both arrive**, amr2 first.
 
-**What the operator should watch.** Both plans appearing together, one robot tracking
-its plan to the goal, the pedestrians crossing — and the second robot's plan being
-redrawn without the robot advancing.
+**What the operator should watch.** Both plans appearing together, both robots
+tracking them at visibly different speeds, and the pedestrians crossing.
 
 **What the presenter should explain.**
 
@@ -266,48 +265,45 @@ redrawn without the robot advancing.
 ./ws.sh ros2 topic info -v /fleet_map | head -20    # 2 subscribers, both global costmaps
 ./ws.sh ros2 param get /amr1/global_costmap/global_costmap global_frame   # fleet_map
 ./ws.sh ros2 param get /amr2/global_costmap/global_costmap global_frame   # fleet_map
-./ws.sh ros2 node list | wc -l                      # 126 entries, 65 unique names
+./ws.sh ros2 node list | grep -c '^/amr1'           # 23 - and the same for amr2
 ```
 
-The entry count is roughly twice the number of nodes because several nodes advertise
-from more than one DDS participant — that gap is the whole reason `cyclonedds.xml`
-raises the participant ceiling (§0), and it is why an earlier "53" here was wrong.
-Do not treat a specific number as the check; the check is that **every lifecycle node
+`ros2 node list` sometimes repeats a node once per DDS participant, so the raw entry
+count can come out well above the number of unique names — that gap is the whole reason
+`cyclonedds.xml` raises the participant ceiling (§0), and it is why an earlier "53" here
+was wrong. **It also moves between runs**, so do not treat a specific total as the
+check. The check is that each robot brings up the same 23-node stack and that
+**every lifecycle node
 reaches `active`**.
 
-**Expected result — read this before you run it.**
+**Expected result.**
 
-**Both goals are dispatched, both are accepted, and both plans are published in
-`fleet_map`. Only ONE of the two robots reaches its goal.** The other replans the
-full 10.5 m path repeatedly, never translates more than about 2 m, and `bt_navigator`
-aborts with `Failed to make progress`. Which robot loses depends on the
-configuration:
+**Both goals are dispatched, both are accepted, both plans are published in
+`fleet_map`, and both robots arrive.** Four consecutive runs on this commit:
 
-| configuration | amr1 | amr2 |
+| run | amr1 | amr2 |
 |---|---|---|
-| **as shipped** | SUCCEEDED 18.8–19.5 s | ABORTED, ≤ 0.6 m driven |
-| `with_motion_chain:=false` | ABORTED, 2.0 m driven | SUCCEEDED 11.6 s |
+| 1 | SUCCEEDED 18.6 s, 10.51 m driven, 0.016 m final error | SUCCEEDED 11.3 s, 10.68 m, 0.182 m |
+| 2 | SUCCEEDED 18.9 s, 10.50 m, 0.019 m | SUCCEEDED 11.3 s, 10.68 m, 0.185 m |
+| 3 | SUCCEEDED 18.6 s, 10.51 m, 0.011 m | SUCCEEDED 11.3 s, 10.68 m, 0.182 m |
+| 4 | SUCCEEDED 18.6 s, 10.48 m, 0.029 m | SUCCEEDED 11.3 s, 10.66 m, 0.156 m |
 
-Reproduced in **9 consecutive runs**, the most recent against a from-scratch build of
-this commit and committed as `results/phase3_concurrent_goals_current.md` — amr1
-SUCCEEDED in 18.7 s having driven 10.52 m to a 0.020 m final error, amr2 ABORTED
-having driven 0.07 m. Ruled out in turn: the pedestrians, the Gazebo GUI and its
-real-time factor, the fleet trajectory layer on its own, and SafetyGate — which never
-fires during the stall. **This is a known open defect, written up in README §10.** Do
-not present this scenario as both robots arriving.
+Closest approach **3.000 m** over 2 163 samples, **0 replans** in every run. Committed
+as `results/phase3_concurrent_goals_recheck.md`, and the timings reproduce
+`results/phase3_concurrent_goals.md` (18.8 s / 11.3 s).
 
-> **Historical, not current.** `results/phase3_concurrent_goals.md` records **both**
-> robots SUCCEEDED — amr1 18.8 s / amr2 11.3 s, final errors 0.062 / 0.042 m, closest
-> approach 3.000 m over 2 180 samples. That artifact was measured at commit `8ae594e`,
-> **before** the payload motion chain and the fleet trajectory layer were added, and
-> no run since reproduces it. Whichever robot does complete reproduces its own
-> committed time almost exactly, so those are real measurements of a configuration
-> that **is no longer the one that ships.**
+> **An earlier revision of this runbook told you the opposite** — that only one robot
+> ever arrives and that this was a known open defect. That entry was measured on a
+> machine whose process table was not actually clean (`clean_processes.sh` matched
+> none of `trajectory_predictor`, `traffic_control`, `payload_jerk_adapter` or
+> `priority_mux`, and seven generations of them were found still running) and whose
+> disk had been filled to 977 MB free by their logs. **It is retracted** — the full
+> account, including what is *not* claimed about the cause, is in README §10 and in
+> `results/phase3_concurrent_goals_recheck.md`.
 
-What this scenario *does* demonstrate: concurrent **dispatch**, concurrent
-**planning** in one shared frame, concurrent **tracking**, and the fleet map in use as
-the static layer of both global costmaps. What it does **not** demonstrate is both
-robots arriving.
+What this scenario demonstrates: concurrent **dispatch**, concurrent **planning** in
+one shared frame, concurrent **tracking**, both robots **arriving**, and the fleet map
+in use as the static layer of both global costmaps.
 
 **Limitations and failure modes.**
 
@@ -793,10 +789,11 @@ control stack.
 
 **Duration.** Runs until you Ctrl-C — it has no mission and does not self-terminate.
 
-**Expected result.** **65 unique node names — `ros2 node list` prints 111 entries**,
-because several nodes advertise from more than one DDS participant. Every lifecycle
-node reaches `active`, and `/fleet_map` is published with both global costmaps
-subscribed. Use Scenario 2 to see it do something.
+**Expected result.** **23 nodes in each robot's namespace plus 17 shared — 63 unique
+names on this build.** `ros2 node list` can print more entries than that because
+several nodes advertise from more than one DDS participant, so the raw total is not
+the check. Every lifecycle node reaches `active`, and `/fleet_map` is published with
+both global costmaps subscribed. Use Scenario 2 to see it do something.
 
 ---
 
