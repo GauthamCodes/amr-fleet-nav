@@ -1,112 +1,122 @@
 # Demo media
 
-Screen recordings of the simulator, captured live from the launches in
-[`../docs/DEMO_RUNBOOK.md`](../docs/DEMO_RUNBOOK.md). The Gazebo camera is locked
-onto the robot for the whole of each clip, so the vehicle stays in frame rather
-than the scene being viewed from a fixed overhead pose.
+Everything here was captured from a live run of a command in
+[`../HOW_TO_RUN.md`](../HOW_TO_RUN.md), on the code in this repository. Nothing is a
+mock-up, nothing is staged beyond the scenario the launch file stages itself, and
+nothing was carried over from an earlier build.
 
-**Every clip is a real run, and each one's own report is in
-[`run_reports/`](run_reports/).** These are *not* the repository's canonical
-evidence — that is [`../results/`](../results/), which is what
-[`../README.md`](../README.md) §5 quotes. The reports here exist so that anything
-visible in a video can be checked against the run that produced it, and so that
-where a recorded run differs from the canonical one, the difference is on the
-record rather than hidden.
+**These are illustrations, not evidence.** The repository's evidence is
+[`../results/`](../results/), which is what [`../README.md`](../README.md) §5 quotes
+figure by figure. What the files here are for is so that an evaluator can see what a
+command is supposed to produce *before* spending five minutes running it, and can hold
+their own run against a reference afterwards.
 
-| Clip | Length | Shows | Report |
-|---|---|---|---|
-| `safety_halt.mp4` | 0:47 | §3.3 — amr1 navigating the aisle with pedestrians; the SafetyGate halting it three times and releasing on hysteresis; goal still reached | [`safety_halt.md`](run_reports/safety_halt.md) |
-| `safety_fail_closed.mp4` | 0:20 | §3.3 fail-closed — the SafetyGate is **SIGKILLed at 0.35 m/s** while upstream keeps commanding, and the robot stops anyway | [`safety_fail_closed.md`](run_reports/safety_fail_closed.md) |
-| `yield_protocol.mp4` | 3:11 | §3.2b — both robots converge on one 3.0 m gap in a barrier; amr2 is escalated to a yield and holds while amr1 passes | [`yield_protocol.md`](run_reports/yield_protocol.md) · [mission](run_reports/yield_protocol_mission.md) |
-| `yield_resolved_locally.mp4` | 1:48 | §3.2 — the **same scenario resolving without arbitration**: conflicts predicted, the predicted approach opens up, the arbiter stands down | [`yield_resolved_locally.md`](run_reports/yield_resolved_locally.md) · [mission](run_reports/yield_resolved_locally_mission.md) |
+```
+media/
+├── previews/   short GIFs, one per demo, embedded next to that demo's command
+├── verified/   full-size stills of the same runs
+└── archive/    reports from recorded runs whose clips are no longer carried
+```
 
-## What each recorded run measured
+## `previews/` — what each command looks like
 
-**`safety_halt.mp4`** — goal **SUCCEEDED**, **3 halts**, sensor-stamp-to-zero-command
-**8.0 / 8.0 / 7.0 ms**, and **0 recovery behaviours during any halt**. Consistent with
-the canonical run in `results/phase2_safety_suppressed.md` (mean 8.46 ms, p95 11.00 ms,
-3 halts).
+Cut from a live run, sped up where the robot's travel is uneventful and left near real
+time where the behaviour itself is the point.
 
-**`safety_fail_closed.mp4`** — the gate is killed with **SIGKILL**, so no shutdown
-handler runs, and the robot travelled **0.189 m** before coming to rest 0.75 s later.
-The canonical run recorded 0.196 m; the control arm without a plant-side watchdog
-travelled **3.500 m and was still rolling** when its window closed
-(`results/phase2_failclosed_no_watchdog.md`). Watch the aisle floor grid for the
-distance.
+| Preview | Length / speed | Shows |
+|---|---|---|
+| `cooperative_mapping.gif` | 11 s at 14× | Gazebo left, RViz right. `/fleet_map` grows from empty to covering the aisle, filling in **from both ends at once** because both robots are contributing, with the rack bays resolving as black cut-outs. Demo A. |
+| `concurrent_goals.gif` | 10 s at 1.35× | Both plans already drawn in the `fleet_map` frame — **green AMR-1, cyan AMR-2** — and both robots tracking them at visibly different speeds. Demo B. |
+| `safety_override.gif` | 11 s at 2.4× | A pedestrian walks into AMR-1's path; the SafetyGate halts the robot short of them and releases on hysteresis once they move away. Demo C. |
+| `yield_protocol.gif` | 11 s at 3.6× | Both robots converge on the single 3.0 m gap in the barrier and pass through it one at a time. Demo D. |
 
-**`yield_protocol.mp4`** — **3 conflicts predicted, all 3 escalated, amr2 yielded every
-time**, and **0 recovery behaviours fired during any hold**. Both goals **SUCCEEDED**
-(amr1 77.0 s / 12.19 m, amr2 80.2 s / 14.15 m). Two things to read honestly:
-
-- This run was launched with **`time_window_s:=5.0`**, not the default 3.0 s. Three
-  consecutive attempts at the defaults produced **zero** escalations — the local layer
-  opened the gap every time — which is the non-determinism `../README.md` §10.9
-  describes rather than a surprise. Widening the prediction window is the remedy the
-  runbook already documents for exactly this. **The canonical yield numbers quoted in
-  `../README.md` §5.7 come from `results/phase7_yield.md`, which ran at the default
-  window.**
-- **Yield 2 released on the 45 s fail-safe ceiling, not on "conflict cleared".** That
-  is a **deadlock**, and the report labels it as one. The canonical run released both
-  of its holds on *conflict cleared* and never reached the ceiling. A submission clip
-  showing a deadlock is worth more than a re-roll that hides it: the fail-safe existing,
-  firing, and being reported as a deadlock rather than as a successful yield is the
-  behaviour worth seeing.
-
-**`yield_resolved_locally.mp4`** — the same launch at default settings: conflicts were
-predicted, the predicted closest approach opened up, the arbiter **declined to act**,
-and both goals still succeeded. Its verdict reads **NOT EXERCISED**, not FAIL — a run in
-which the local layer resolved everything is not a failed run. Together with the clip
-above this is the **local-first ordering** as data: central arbitration is what happens
-*after* the local layer has failed, not instead of it.
-
-## Verified stills — what a working run looks like
-
-`verified/` holds four frames taken from runs that were launched from the documented
-command, watched in Gazebo and RViz, and confirmed to match what the documentation
-says they should show. They are the reference an evaluator can hold their own run
-against, and they are the images embedded in [`../HOW_TO_RUN.md`](../HOW_TO_RUN.md) §4.
+## `verified/` — stills to hold your own run against
 
 | File | Shows |
 |---|---|
-| `verified/warehouse_both_robots.png` | The warehouse Gazebo should open to — rack rows either side, the 8° ramp and upper plateau beyond, and **both robots in the aisle** (AMR-2 amber, AMR-1 blue) |
-| `verified/cooperative_mapping.png` | Demo A: Gazebo left, RViz right, one `/fleet_map` covering the aisle with the rack bays cut out — built by both robots into a single grid |
-| `verified/rviz_fleet_map_config.png` | The same demo with RViz's **Displays panel open**, so the configuration is legible rather than asserted: **Fixed Frame `fleet_map`**, `Global Status: Ok`, topic **`/fleet_map`**, update topic `/fleet_map_updates`, resolution 0.05 m, **680 × 400**, origin −15 / −10. Both robots are in the Gazebo view and both appear as markers on the map |
-| `verified/rviz_both_plans.png` | Both routes planned at once in the `fleet_map` frame, green for AMR-1 and cyan for AMR-2, `Global Status: Ok`. What happens *after* this is §9.1 of HOW_TO_RUN |
-| `verified/safety_override.png` | Demo B: a pedestrian has walked into AMR-1's path and the robot has stopped short of them |
+| `warehouse_both_robots.png` | The warehouse Gazebo should open to — rack rows either side, the 8° ramp and upper plateau beyond, walking pedestrians, and **both robots in the aisle** (AMR-2 amber, AMR-1 blue) |
+| `rviz_fleet_map_config.png` | The same run with RViz's **Displays panel open**, so the configuration is legible rather than asserted: **Fixed Frame `fleet_map`**, `Global Status: Ok`, topic **`/fleet_map`**, update topic `/fleet_map_updates`, resolution 0.05 m, **680 × 400**, origin −15 / −10 |
+| `cooperative_mapping.png` | Demo A at the end of a survey lap: one `/fleet_map` covering the aisle with the rack bays cut out, built by both robots into a single grid |
+| `concurrent_goals.png` | Demo B with **both routes planned at once** in the `fleet_map` frame, green for AMR-1 and cyan for AMR-2, `Global Status: Ok` |
+| `safety_override.png` | Demo C: a pedestrian has walked into AMR-1's path and the robot has stopped short of them |
+| `yield_gap.png` | Demo D: the staged conflict — both robots approaching the single 3.0 m gap in the red barrier, with the shared map and both plans in RViz |
 
-## Stills
+## What the recorded runs actually measured
 
-| File | Shows |
-|---|---|
-| `stills/fleet_narrow_gap.png` | Both robots approaching the 3.0 m gap in the red barrier — the staged narrow-intersection conflict, with rack rows either side and the ramp and upper plateau beyond |
-| `stills/pedestrian_encounter.png` | amr1 in the aisle with pedestrian traffic ahead of it, approaching the ramp |
-| `stills/robot_ramp_approach.png` | amr1 at the ramp approach, showing the 8° ramp and the upper plateau |
-| `stills/robot_aisle_chase.png` | Chase view of amr1 running the main aisle between the storage racks |
+The GIFs are illustrations, so where a recorded run's own numbers differ from the
+canonical artifact, the difference is stated here rather than hidden.
 
-The analysis figures — the payload velocity/jerk plot, the SLAM map, the PitchGate
-before/after, the navigation tracks — are in [`../results/`](../results/) and are the
-artifacts `../README.md` §5 cites directly:
+- **Cooperative mapping.** The recorded run ended **amr1 20 accepted / amr2 22
+  accepted**. Per-run counts move a lot — four runs of the same command gave 41/38,
+  12/22, 15/65 and 20/22 — because the score depends on where each robot is when a scan
+  lands. The figure to quote is the committed one,
+  [`../results/phase3_selective_updates.md`](../results/phase3_selective_updates.md):
+  **41 scored, 23 accepted, 18 deferred (43.9 %)**, amr1 13/8 and amr2 10/10.
+
+- **Concurrent goals.** The recorded run reached both goals, amr1 18.6 s and amr2
+  11.3 s. That is not a one-off: four consecutive runs are in
+  [`../results/phase3_concurrent_goals_recheck.md`](../results/phase3_concurrent_goals_recheck.md),
+  which also retracts an earlier claim that only one robot ever arrives.
+
+- **Safety override.** The recorded run took **4 halts**, not the 3 in the committed
+  [`../results/phase2_safety_suppressed.md`](../results/phase2_safety_suppressed.md).
+  The count depends on where the pedestrians happen to be; **the count is not the
+  result.** What is invariant across both runs is 0 commands leaking past the latch, 0
+  Nav2 recovery behaviours during a halt, and a sensor-stamp-to-zero-command time in
+  single-digit milliseconds.
+
+- **The yield.** Escalation is **non-deterministic and the previews prove it**: four
+  runs while recording gave **0 escalations at the default prediction window, then 0, 1
+  and 2 at `time_window_s:=5.0`**. Two of those four therefore reported
+  **`NOT EXERCISED`** — which is the correct verdict for a run in which the robots
+  opened the gap between themselves, not a failure. The escalations that did fire
+  released on *conflict cleared* rather than on the 45 s fail-safe, with 0 recovery
+  behaviours during the hold, and both goals SUCCEEDED. The canonical yield numbers in
+  `../README.md` §5.7 come from
+  [`../results/phase7_yield.md`](../results/phase7_yield.md), measured at the **default**
+  window.
+
+## `archive/`
+
+[`archive/run_reports/`](archive/run_reports/) holds the per-run reports from an earlier
+round of recordings. **The clips they describe are no longer carried here** — they were
+recorded before the chassis colours were split (both robots render blue in them, which
+now contradicts every other image in this repository and the `body_color` entries in
+`amr_description/config/fleet.yaml`), and the scenarios they showed have been
+re-recorded above from the current build.
+
+The reports are kept because they are measurements and one of them is worth reading:
+`yield_protocol.md` records a hold that **ended on the 45 s fail-safe ceiling — a
+deadlock** — and labels it as one rather than presenting it as a successful yield. A
+fail-safe existing, firing, and being reported as a deadlock is worth more than a
+re-roll that hides it.
+
+**Nothing in `archive/` describes current behaviour.** For that, read `previews/`,
+`verified/`, and `../results/`.
+
+## Figures that live in `results/`, not here
+
+The analysis plots are artifacts rather than illustrations, so they sit with the rest of
+the evidence:
 
 | Figure | What it is |
 |---|---|
-| `../results/phase5_payload_trace.png` | The §3.1 deliverable — commanded velocity, acceleration and jerk, loaded against unloaded, for both robots |
-| `../results/phase1_map.png` | The cooperative SLAM map artifact |
-| `../results/phase2_pitch_gate.png` | PitchGate truncation on the ramp, raw against validated |
-| `../results/phase1_nav_baseline.png`, `../results/phase1_nav_actors.png` | Planned against executed track, without and with pedestrians |
+| [`../results/phase5_payload_trace.png`](../results/phase5_payload_trace.png) | The §3.1 deliverable — commanded velocity, acceleration and jerk, loaded against unloaded, for both robots |
+| [`../results/phase1_map.png`](../results/phase1_map.png) | The cooperative SLAM map artifact |
+| [`../results/phase2_pitch_gate.png`](../results/phase2_pitch_gate.png) | PitchGate truncation on the ramp, raw against validated |
+| [`../results/phase1_nav_baseline.png`](../results/phase1_nav_baseline.png), [`../results/phase1_nav_actors.png`](../results/phase1_nav_actors.png) | Planned against executed track, without and with pedestrians |
 
 ## How these were captured
 
-Each clip is one `ros2 launch` of the corresponding scenario from
-[`../docs/DEMO_RUNBOOK.md`](../docs/DEMO_RUNBOOK.md), run with `headless:=false` after
-`./scripts/clean_processes.sh`, and screen-grabbed at 25 fps. Camera follow is the
+Each is one `ros2 launch` of the scenario named beside it, run with `headless:=false`
+after `./scripts/clean_processes.sh`, and screen-grabbed at 25 fps. Camera follow is the
 Gazebo GUI's own `/gui/follow` service (a *service* in `gz-sim` 8, not a topic), issued
 repeatedly during the run because `CameraTracking` ignores a request for an entity that
-has not spawned yet, and the robots spawn on a stagger.
+has not spawned yet and the robots spawn on a stagger.
 
-The recordings used a stripped-down GUI layout — the 3D view, the clock and the
-play/pause control, with the entity-tree and component-inspector docks omitted — so the
-render view fills the frame. That is a local viewing preference and changes nothing
-about the simulation.
-
-Each run was given its own `tag:=`, so none of these recordings wrote over the
-canonical artifacts in `../results/`.
+The two-window scenes use a recording-only RViz configuration — the same displays and
+the same `fleet_map` Fixed Frame as the shipped
+`src/amr_bringup/rviz/fleet_mapping.rviz`, with the dock panels removed so the map gets
+the full half-width. That is a viewing preference and changes nothing about the
+simulation. Every run was given its own `tag:=`, so none of these recordings overwrote a
+committed artifact in `../results/`.

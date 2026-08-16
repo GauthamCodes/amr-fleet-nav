@@ -35,10 +35,10 @@ generated/
 *.mp4
 *.mkv
 *.webm
-# ...except the four short demo clips in media/, which ARE evidence: each is a
-# real run, each is cited from the README, and each ships with that run's own
-# report in media/run_reports/.
-!media/*.mp4
+# No exception any more. media/ used to carry four short .mp4 clips; they were
+# replaced by the GIF previews in media/previews/, which GitHub plays inline in the
+# README and in HOW_TO_RUN next to the command that produces them. A clip an
+# evaluator has to download and open in a player is a clip they will not watch.
 
 # Demo runs write their own artifacts into results/. These are per-run outputs of
 # a demonstration, not the committed evidence they sit beside - the canonical
